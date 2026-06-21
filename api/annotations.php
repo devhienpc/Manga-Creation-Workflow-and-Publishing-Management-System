@@ -1,10 +1,21 @@
 <?php
 /**
  * api/annotations.php
- * AJAX endpoint phục vụ các tác vụ của Biên tập viên:
- * - create: Tạo ghi chú chỉnh sửa (Annotation)
- * - resolve: Giải quyết ghi chú
- * - submit_to_board: Chuyển tiếp bản thảo lên Ban biên tập
+ *
+ * GET  → Lấy annotations của một manuscript (hoặc một trang cụ thể)
+ *         ?manuscript_id=<int>   Bắt buộc
+ *         ?page_id=<int>         Tùy chọn, lọc theo trang
+ *         ?status=open|resolved  Tùy chọn
+ *
+ * POST → Tạo / hành động
+ *         action=create          (editor only)
+ *         action=resolve         (editor only)
+ *         action=submit_to_board (editor only) — Chuyển bản thảo lên BBT
+ *
+ * PUT  → Cập nhật nội dung annotation
+ *         { annotation_id, comment?, status? }  (editor only)
+ *
+ * Response: { "success": bool, "data": {...}, "message": "..." }
  */
 
 require_once __DIR__ . '/../config/constants.php';
@@ -12,203 +23,332 @@ require_once __DIR__ . '/../config/auth.php';
 require_once __DIR__ . '/../config/db.php';
 
 header('Content-Type: application/json; charset=utf-8');
+header('X-Content-Type-Options: nosniff');
 
-// Phải đăng nhập và là Biên tập viên mới được dùng API này
-if (!isLoggedIn() || getCurrentUser()['role'] !== ROLES['EDITOR']) {
-    http_response_code(403);
-    echo json_encode(['success' => false, 'message' => 'Từ chối truy cập. Chỉ dành cho Biên tập viên.']);
+// ── Auth ──────────────────────────────────────────────
+if (!isLoggedIn()) {
+    http_response_code(401);
+    echo json_encode(['success' => false, 'data' => null, 'message' => 'Chưa đăng nhập.']);
     exit();
 }
 
 $currentUser = getCurrentUser();
-$db = getDB();
-$action = trim($_POST['action'] ?? '');
+$db          = getDB();
 
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
-    echo json_encode(['success' => false, 'message' => 'Phương thức không được hỗ trợ.']);
+// ── Helper ────────────────────────────────────────────
+function annOut(bool $ok, $data = null, string $msg = '', int $code = 0): void {
+    if ($code > 0) http_response_code($code);
+    echo json_encode(['success' => $ok, 'data' => $data, 'message' => $msg]);
     exit();
 }
 
-// 1. ACTION: create - Tạo ghi chú chỉnh sửa
-if ($action === 'create') {
-    $manuscriptId = (int)($_POST['manuscript_id'] ?? 0);
-    $pageId       = (int)($_POST['page_id'] ?? 0);
-    $xPos         = (float)($_POST['x_pos'] ?? 0);
-    $yPos         = (float)($_POST['y_pos'] ?? 0);
-    $width        = (float)($_POST['width'] ?? 0);
-    $height       = (float)($_POST['height'] ?? 0);
-    $comment      = trim($_POST['comment'] ?? '');
-
-    if ($manuscriptId <= 0 || $pageId <= 0 || empty($comment)) {
-        echo json_encode(['success' => false, 'message' => 'Thiếu thông tin hoặc bình luận rỗng.']);
-        exit();
+function requireEditor(): void {
+    global $currentUser;
+    if ($currentUser['role'] !== ROLES['EDITOR']) {
+        annOut(false, null, 'Chỉ Biên tập viên mới được thực hiện hành động này.', 403);
     }
+}
 
-    try {
-        // Chèn vào bảng annotations
-        $stmt = $db->prepare(
-            "INSERT INTO annotations (manuscript_id, page_id, editor_id, x_pos, y_pos, width, height, comment, status)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open')"
+// ═══════════════════════════════════════════════════════
+// GET — Lấy annotations của manuscript/trang
+// ═══════════════════════════════════════════════════════
+if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    // Cả editor và mangaka đều có thể xem (mangaka xem chú thích của mình)
+    $manuscriptId = (int)($_GET['manuscript_id'] ?? 0);
+    $pageId       = (int)($_GET['page_id']       ?? 0);
+    $statusFilter = trim($_GET['status']          ?? ''); // 'open' | 'resolved'
+
+    if ($manuscriptId <= 0) annOut(false, null, 'manuscript_id là bắt buộc.', 422);
+
+    // Verify quyền đọc: editor hoặc mangaka sở hữu series
+    if ($currentUser['role'] === ROLES['MANGAKA']) {
+        $chkStmt = $db->prepare(
+            "SELECT m.id FROM manuscripts m
+             JOIN series s ON s.id = m.series_id
+             WHERE m.id = ? AND s.mangaka_id = ? LIMIT 1"
         );
-        $stmt->execute([
-            $manuscriptId,
-            $pageId,
-            $currentUser['id'],
-            $xPos,
-            $yPos,
-            $width,
-            $height,
-            $comment
-        ]);
-        
-        $newId = (int)$db->lastInsertId();
-
-        // Cập nhật trạng thái bản thảo thành đang duyệt (reviewing) nếu hiện tại là pending
-        $db->prepare("UPDATE manuscripts SET status = 'reviewing' WHERE id = ? AND status = 'pending'")
-           ->execute([$manuscriptId]);
-
-        echo json_encode([
-            'success' => true,
-            'message' => 'Tạo ghi chú thành công!',
-            'annotation' => [
-                'id' => $newId,
-                'x_pos' => $xPos,
-                'y_pos' => $yPos,
-                'width' => $width,
-                'height' => $height,
-                'comment' => $comment,
-                'status' => 'open'
-            ]
-        ]);
-    } catch (\Throwable $e) {
-        http_response_code(500);
-        echo json_encode(['success' => false, 'message' => 'Lỗi máy chủ: ' . $e->getMessage()]);
-    }
-    exit();
-}
-
-// 2. ACTION: resolve - Giải quyết ghi chú chỉnh sửa
-if ($action === 'resolve') {
-    $annotationId = (int)($_POST['annotation_id'] ?? 0);
-
-    if ($annotationId <= 0) {
-        echo json_encode(['success' => false, 'message' => 'ID ghi chú không hợp lệ.']);
-        exit();
+        $chkStmt->execute([$manuscriptId, $currentUser['id']]);
+        if (!$chkStmt->fetch()) {
+            annOut(false, null, 'Không có quyền xem annotations của bản thảo này.', 403);
+        }
     }
 
     try {
-        $stmt = $db->prepare("UPDATE annotations SET status = 'resolved' WHERE id = ?");
-        $stmt->execute([$annotationId]);
+        $where  = ['a.manuscript_id = ?'];
+        $params = [$manuscriptId];
 
-        echo json_encode(['success' => true, 'message' => 'Đã đánh dấu giải quyết ghi chú.']);
+        if ($pageId > 0) {
+            $where[]  = 'a.page_id = ?';
+            $params[] = $pageId;
+        }
+
+        if (in_array($statusFilter, ['open', 'resolved'], true)) {
+            $where[]  = 'a.status = ?';
+            $params[] = $statusFilter;
+        }
+
+        $whereSQL = implode(' AND ', $where);
+
+        $stmt = $db->prepare(
+            "SELECT a.id, a.manuscript_id, a.page_id, a.x_pos, a.y_pos,
+                    a.width, a.height, a.comment, a.status, a.created_at,
+                    u.id AS editor_id, u.username AS editor_name,
+                    p.page_number
+             FROM annotations a
+             JOIN users u ON u.id = a.editor_id
+             LEFT JOIN pages p ON p.id = a.page_id
+             WHERE {$whereSQL}
+             ORDER BY a.created_at ASC"
+        );
+        $stmt->execute($params);
+        $annotations = $stmt->fetchAll();
+
+        // Stats
+        $open     = count(array_filter($annotations, fn($a) => $a['status'] === 'open'));
+        $resolved = count($annotations) - $open;
+
+        annOut(true, [
+            'annotations' => $annotations,
+            'stats'       => ['total' => count($annotations), 'open' => $open, 'resolved' => $resolved],
+        ], '');
     } catch (\Throwable $e) {
-        http_response_code(500);
-        echo json_encode(['success' => false, 'message' => 'Lỗi máy chủ: ' . $e->getMessage()]);
+        annOut(false, null, 'Lỗi máy chủ: ' . $e->getMessage(), 500);
     }
-    exit();
 }
 
-// 3. ACTION: submit_to_board - Chuyển tiếp bản thảo lên Ban biên tập
-if ($action === 'submit_to_board') {
-    $manuscriptId = (int)($_POST['manuscript_id'] ?? 0);
-    $boardNotes   = trim($_POST['board_notes'] ?? '');
+// ═══════════════════════════════════════════════════════
+// PUT — Cập nhật annotation (comment hoặc status)
+// ═══════════════════════════════════════════════════════
+if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
+    requireEditor();
 
-    if ($manuscriptId <= 0) {
-        echo json_encode(['success' => false, 'message' => 'ID bản thảo không hợp lệ.']);
-        exit();
+    $body         = json_decode(file_get_contents('php://input'), true) ?? [];
+    $annotationId = (int)($body['annotation_id'] ?? 0);
+    $comment      = trim($body['comment']         ?? '');
+    $newStatus    = trim($body['status']           ?? '');
+
+    if ($annotationId <= 0) annOut(false, null, 'annotation_id không hợp lệ.', 422);
+
+    // Verify ownership (editor mới được sửa chú thích của mình)
+    $stmt = $db->prepare("SELECT id, editor_id, status FROM annotations WHERE id = ? LIMIT 1");
+    $stmt->execute([$annotationId]);
+    $ann = $stmt->fetch();
+
+    if (!$ann) annOut(false, null, 'Annotation không tồn tại.', 404);
+    if ((int)$ann['editor_id'] !== $currentUser['id']) {
+        annOut(false, null, 'Chỉ người tạo ghi chú mới được chỉnh sửa.', 403);
     }
 
+    $setClauses = [];
+    $setParams  = [];
+
+    if ($comment !== '') {
+        $setClauses[] = 'comment = ?';
+        $setParams[]  = $comment;
+    }
+    if ($newStatus !== '' && in_array($newStatus, ['open', 'resolved'], true)) {
+        $setClauses[] = 'status = ?';
+        $setParams[]  = $newStatus;
+    }
+
+    if (empty($setClauses)) annOut(false, null, 'Không có trường nào để cập nhật.', 422);
+
     try {
-        // Truy vấn thông tin bản thảo
-        $stmt = $db->prepare("SELECT series_id, chapter_id, submitted_by FROM manuscripts WHERE id = ?");
-        $stmt->execute([$manuscriptId]);
-        $manuscript = $stmt->fetch();
+        $setParams[] = $annotationId;
+        $db->prepare("UPDATE annotations SET " . implode(', ', $setClauses) . " WHERE id = ?")
+           ->execute($setParams);
 
-        if (!$manuscript) {
-            echo json_encode(['success' => false, 'message' => 'Không tìm thấy bản thảo.']);
-            exit();
-        }
+        annOut(true, ['annotation_id' => $annotationId], 'Đã cập nhật ghi chú.');
+    } catch (\Throwable $e) {
+        annOut(false, null, 'Lỗi máy chủ: ' . $e->getMessage(), 500);
+    }
+}
 
-        $db->beginTransaction();
+// ═══════════════════════════════════════════════════════
+// POST — Tạo / hành động
+// ═══════════════════════════════════════════════════════
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-        // 3.1. Cập nhật trạng thái bản thảo thành đã duyệt (approved)
-        $upM = $db->prepare("UPDATE manuscripts SET status = 'approved' WHERE id = ?");
-        $upM->execute([$manuscriptId]);
+    $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+    if (str_contains($contentType, 'application/json')) {
+        $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    } else {
+        $body = $_POST;
+    }
 
-        // 3.2. Cập nhật trạng thái chương tương ứng sang 'review' (đang chờ BBT phê duyệt xuất bản)
-        if ($manuscript['chapter_id']) {
-            $upC = $db->prepare("UPDATE chapters SET status = 'review' WHERE id = ?");
-            $upC->execute([$manuscript['chapter_id']]);
-        }
+    $action = trim($body['action'] ?? '');
 
-        // 3.3. Tạo mới hoặc cập nhật thông tin trong bảng đệ trình (submissions)
-        // Kiểm tra xem đã có đệ trình cho bản thảo này chưa
-        $stmtSub = $db->prepare("SELECT id FROM submissions WHERE manuscript_id = ?");
-        $stmtSub->execute([$manuscriptId]);
-        $subId = $stmtSub->fetchColumn();
+    // ── create ─────────────────────────────────────────
+    if ($action === 'create') {
+        requireEditor();
 
-        if ($subId) {
-            $upSub = $db->prepare(
-                "UPDATE submissions 
-                 SET status = 'pending', board_notes = ?, submitted_at = NOW() 
-                 WHERE id = ?"
+        $manuscriptId = (int)($body['manuscript_id'] ?? 0);
+        $pageId       = (int)($body['page_id']       ?? 0);
+        $xPos         = (float)($body['x_pos']       ?? 0);
+        $yPos         = (float)($body['y_pos']       ?? 0);
+        $width        = (float)($body['width']        ?? 0);
+        $height       = (float)($body['height']       ?? 0);
+        $comment      = trim($body['comment']         ?? '');
+
+        if ($manuscriptId <= 0) annOut(false, null, 'manuscript_id không hợp lệ.', 422);
+        if ($pageId <= 0)       annOut(false, null, 'page_id không hợp lệ.', 422);
+        if (empty($comment))    annOut(false, null, 'Nội dung ghi chú không được để trống.', 422);
+        if ($width < 0.5 || $height < 0.5) annOut(false, null, 'Vùng chọn quá nhỏ.', 422);
+
+        // Clamp tọa độ [0, 100]
+        $clamp  = fn($v, $max = 100.0) => max(0.0, min($max, (float)$v));
+        $xPos   = $clamp($xPos);
+        $yPos   = $clamp($yPos);
+        $width  = $clamp($width);
+        $height = $clamp($height);
+
+        try {
+            $stmt = $db->prepare(
+                "INSERT INTO annotations (manuscript_id, page_id, editor_id, x_pos, y_pos, width, height, comment, status)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open')"
             );
-            $upSub->execute([$boardNotes, $subId]);
-        } else {
-            $insSub = $db->prepare(
-                "INSERT INTO submissions (series_id, manuscript_id, submitted_by, status, board_notes, submitted_at)
-                 VALUES (?, ?, ?, 'pending', ?, NOW())"
-            );
-            $insSub->execute([
-                $manuscript['series_id'],
-                $manuscriptId,
-                $currentUser['id'], // Người gửi đề xuất: Biên tập viên
-                $boardNotes
+            $stmt->execute([
+                $manuscriptId, $pageId, $currentUser['id'],
+                $xPos, $yPos, $width, $height, $comment,
             ]);
+            $newId = (int)$db->lastInsertId();
+
+            // Cập nhật bản thảo thành 'reviewing' nếu đang pending
+            $db->prepare("UPDATE manuscripts SET status = 'reviewing' WHERE id = ? AND status = 'pending'")
+               ->execute([$manuscriptId]);
+
+            annOut(true, [
+                'annotation' => [
+                    'id'      => $newId,
+                    'x_pos'   => $xPos,   'y_pos'   => $yPos,
+                    'width'   => $width,  'height'  => $height,
+                    'comment' => $comment, 'status'  => 'open',
+                    'editor_name' => $currentUser['username'],
+                ],
+            ], 'Đã tạo ghi chú thành công!');
+        } catch (\Throwable $e) {
+            annOut(false, null, 'Lỗi máy chủ: ' . $e->getMessage(), 500);
         }
-
-        // Lấy tên series và số chương cho thông báo
-        $sStmt = $db->prepare("SELECT title FROM series WHERE id = ?");
-        $sStmt->execute([$manuscript['series_id']]);
-        $seriesTitle = $sStmt->fetchColumn();
-
-        $cNumber = '';
-        if ($manuscript['chapter_id']) {
-            $cStmt = $db->prepare("SELECT chapter_number FROM chapters WHERE id = ?");
-            $cStmt->execute([$manuscript['chapter_id']]);
-            $cNumber = $cStmt->fetchColumn();
-        }
-        $chapterStr = $cNumber ? "Chương $cNumber" : 'Toàn bộ series';
-
-        // 3.4. Gửi thông báo cho họa sĩ (Mangaka)
-        $notifMsgMangaka = "Tin vui! Biên tập viên đã duyệt bản thảo ($chapterStr) của bộ truyện \"$seriesTitle\" và chuyển tiếp lên Ban biên tập phê duyệt xuất bản.";
-        $insNotif = $db->prepare("INSERT INTO notifications (user_id, type, message, link) VALUES (?, 'manuscript_decision', ?, 'mangaka/dashboard.php')");
-        $insNotif->execute([$manuscript['submitted_by'], $notifMsgMangaka]);
-
-        // 3.5. Gửi thông báo cho toàn bộ Ban biên tập (Board members)
-        $notifMsgBoard = "Yêu cầu phê duyệt mới: Biên tập viên đã đề xuất xuất bản bộ truyện \"$seriesTitle\" - $chapterStr.";
-        
-        $stmtBoard = $db->prepare("SELECT id FROM users WHERE role = ?");
-        $stmtBoard->execute([ROLES['BOARD']]);
-        $boardUsers = $stmtBoard->fetchAll(PDO::FETCH_COLUMN);
-        
-        $insNotifBoard = $db->prepare("INSERT INTO notifications (user_id, type, message, link) VALUES (?, 'manuscript_review', ?, 'board/dashboard.php')");
-        foreach ($boardUsers as $boardUid) {
-            $insNotifBoard->execute([$boardUid, $notifMsgBoard]);
-        }
-
-        $db->commit();
-
-        echo json_encode(['success' => true, 'message' => 'Đã phê duyệt và đề xuất xuất bản lên Ban biên tập thành công!']);
-    } catch (\Throwable $e) {
-        $db->rollBack();
-        http_response_code(500);
-        echo json_encode(['success' => false, 'message' => 'Lỗi hệ thống: ' . $e->getMessage()]);
     }
-    exit();
+
+    // ── resolve ────────────────────────────────────────
+    if ($action === 'resolve') {
+        requireEditor();
+
+        $annotationId = (int)($body['annotation_id'] ?? 0);
+        if ($annotationId <= 0) annOut(false, null, 'annotation_id không hợp lệ.', 422);
+
+        try {
+            // Chỉ editor sở hữu hoặc bất kỳ editor nào (theo nghiệp vụ — cho phép mở rộng)
+            $stmt = $db->prepare("UPDATE annotations SET status = 'resolved' WHERE id = ?");
+            $stmt->execute([$annotationId]);
+
+            if ($stmt->rowCount() === 0) annOut(false, null, 'Không tìm thấy annotation.', 404);
+
+            annOut(true, ['annotation_id' => $annotationId, 'status' => 'resolved'],
+                'Đã đánh dấu giải quyết ghi chú.');
+        } catch (\Throwable $e) {
+            annOut(false, null, 'Lỗi máy chủ: ' . $e->getMessage(), 500);
+        }
+    }
+
+    // ── submit_to_board ────────────────────────────────
+    if ($action === 'submit_to_board') {
+        requireEditor();
+
+        $manuscriptId = (int)($body['manuscript_id'] ?? 0);
+        $boardNotes   = trim($body['board_notes']    ?? '');
+
+        if ($manuscriptId <= 0) annOut(false, null, 'manuscript_id không hợp lệ.', 422);
+
+        try {
+            $stmt = $db->prepare(
+                "SELECT m.id, m.series_id, m.chapter_id, m.submitted_by,
+                        s.title AS series_title, s.mangaka_id
+                 FROM manuscripts m
+                 JOIN series s ON s.id = m.series_id
+                 WHERE m.id = ? LIMIT 1"
+            );
+            $stmt->execute([$manuscriptId]);
+            $manuscript = $stmt->fetch();
+
+            if (!$manuscript) annOut(false, null, 'Không tìm thấy bản thảo.', 404);
+
+            $db->beginTransaction();
+
+            // 1. Cập nhật bản thảo → approved
+            $db->prepare("UPDATE manuscripts SET status = 'approved' WHERE id = ?")
+               ->execute([$manuscriptId]);
+
+            // 2. Cập nhật chương → review
+            if ($manuscript['chapter_id']) {
+                $db->prepare("UPDATE chapters SET status = 'review' WHERE id = ?")
+                   ->execute([$manuscript['chapter_id']]);
+            }
+
+            // 3. Tạo hoặc cập nhật submission
+            $existStmt = $db->prepare("SELECT id FROM submissions WHERE manuscript_id = ?");
+            $existStmt->execute([$manuscriptId]);
+            $existSubId = $existStmt->fetchColumn();
+
+            if ($existSubId) {
+                $db->prepare(
+                    "UPDATE submissions SET status='pending', board_notes=?, submitted_at=NOW() WHERE id=?"
+                )->execute([$boardNotes, $existSubId]);
+            } else {
+                $db->prepare(
+                    "INSERT INTO submissions (series_id, manuscript_id, submitted_by, status, board_notes, submitted_at)
+                     VALUES (?, ?, ?, 'pending', ?, NOW())"
+                )->execute([$manuscript['series_id'], $manuscriptId, $currentUser['id'], $boardNotes]);
+            }
+
+            // 4. Thông tin cho notification
+            $chapterStr = '';
+            if ($manuscript['chapter_id']) {
+                $cStmt = $db->prepare("SELECT chapter_number FROM chapters WHERE id = ?");
+                $cStmt->execute([$manuscript['chapter_id']]);
+                $cn = $cStmt->fetchColumn();
+                $chapterStr = $cn ? "Chương {$cn}" : '';
+            }
+            $title = $manuscript['series_title'];
+            $cStr  = $chapterStr ?: 'Toàn bộ series';
+
+            // 5. Notify mangaka
+            $db->prepare(
+                "INSERT INTO notifications (user_id, type, message, link)
+                 VALUES (?, 'manuscript_decision', ?, 'mangaka/dashboard.php')"
+            )->execute([
+                $manuscript['submitted_by'],
+                "Tin vui! Biên tập viên đã duyệt bản thảo ({$cStr}) của bộ truyện \"{$title}\" và chuyển tiếp lên Ban biên tập phê duyệt xuất bản.",
+            ]);
+
+            // 6. Notify all board members
+            $boardUsers = $db->prepare("SELECT id FROM users WHERE role = ?")->execute([ROLES['BOARD']])
+                ? $db->query("SELECT id FROM users WHERE role = 'board'")->fetchAll(\PDO::FETCH_COLUMN)
+                : [];
+            $boardInsert = $db->prepare(
+                "INSERT INTO notifications (user_id, type, message, link)
+                 VALUES (?, 'manuscript_review', ?, 'board/voting.php')"
+            );
+            foreach ($boardUsers as $bid) {
+                $boardInsert->execute([
+                    $bid,
+                    "Yêu cầu phê duyệt mới: \"{$title}\" - {$cStr} đang chờ bỏ phiếu.",
+                ]);
+            }
+
+            $db->commit();
+            annOut(true, ['submission_created' => true], 'Đã đệ trình lên Ban biên tập thành công!');
+        } catch (\Throwable $e) {
+            if ($db->inTransaction()) $db->rollBack();
+            annOut(false, null, 'Lỗi hệ thống: ' . $e->getMessage(), 500);
+        }
+    }
+
+    annOut(false, null, 'Hành động không hợp lệ.', 400);
 }
 
-// Hành động không hợp lệ
-echo json_encode(['success' => false, 'message' => 'Hành động không hợp lệ.']);
+// ── Unsupported method ──
+http_response_code(405);
+echo json_encode(['success' => false, 'data' => null, 'message' => 'Phương thức không được hỗ trợ.']);
 exit();

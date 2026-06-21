@@ -1,11 +1,16 @@
 <?php
 require_once __DIR__ . '/../config/constants.php';
-$pageTitle    = 'Bộ truyện của tôi';
-$activePage   = 'series';
-$allowedRoles = [ROLES['MANGAKA']];
-require_once __DIR__ . '/../includes/layout.php';
+require_once __DIR__ . '/../config/auth.php';
+require_once __DIR__ . '/../config/db.php';
+
+// Yêu cầu đăng nhập & kiểm tra quyền trước khi xử lý POST
+if (!isLoggedIn() || getCurrentUser()['role'] !== ROLES['MANGAKA']) {
+    header('Location: ' . BASE_URL . 'auth/login.php');
+    exit();
+}
 
 $db  = getDB();
+$currentUser = getCurrentUser();
 $uid = $currentUser['id'];
 
 /* ════════════════════════════════════════════════
@@ -103,6 +108,57 @@ if ($action === 'create_series' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+/* ── Action: Create new chapter ── */
+if ($action === 'create_chapter' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $seriesId      = (int) ($_POST['series_id'] ?? 0);
+    $chapterNumber = (int) ($_POST['chapter_number'] ?? 0);
+    $chapterTitle  = trim($_POST['title'] ?? '');
+    $deadline      = $_POST['deadline'] ?? null;
+    if (empty($deadline)) $deadline = null;
+
+    // Verify series belongs to this mangaka
+    $check = $db->prepare("SELECT id FROM series WHERE id = ? AND mangaka_id = ?");
+    $check->execute([$seriesId, $uid]);
+    if (!$check->fetch()) {
+        $flashMsg  = 'Bộ truyện không hợp lệ.';
+        $flashType = 'error';
+    } elseif ($chapterNumber <= 0 || empty($chapterTitle)) {
+        $flashMsg  = 'Vui lòng nhập đầy đủ số chương và tên chương.';
+        $flashType = 'error';
+    } else {
+        // Check if chapter number already exists for this series
+        $chkNum = $db->prepare("SELECT id FROM chapters WHERE series_id = ? AND chapter_number = ?");
+        $chkNum->execute([$seriesId, $chapterNumber]);
+        if ($chkNum->fetch()) {
+            $flashMsg  = "Chương số $chapterNumber đã tồn tại trong bộ truyện này.";
+            $flashType = 'error';
+        } else {
+            try {
+                $db->beginTransaction();
+
+                // Insert chapter
+                $insCh = $db->prepare("INSERT INTO chapters (series_id, chapter_number, title, status, deadline, created_at) VALUES (?, ?, ?, 'planning', ?, NOW())");
+                $insCh->execute([$seriesId, $chapterNumber, $chapterTitle, $deadline]);
+                $chapterId = (int) $db->lastInsertId();
+
+                // Auto-create 3 placeholder pages for this chapter to enable immediate workflow testing
+                $insPg = $db->prepare("INSERT INTO pages (chapter_id, page_number, original_file, composite_file, status) VALUES (?, ?, NULL, NULL, 'pending')");
+                for ($p = 1; $p <= 3; $p++) {
+                    $insPg->execute([$chapterId, $p]);
+                }
+
+                $db->commit();
+                $flashMsg  = "Đã tạo thành công Chương $chapterNumber: $chapterTitle (kèm 3 trang vẽ nháp).";
+                $flashType = 'success';
+            } catch (\Throwable $e) {
+                $db->rollBack();
+                $flashMsg  = 'Lỗi khi tạo chương mới: ' . $e->getMessage();
+                $flashType = 'error';
+            }
+        }
+    }
+}
+
 /* ── Action: Submit manuscript ── */
 if ($action === 'submit_manuscript' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $seriesId  = (int) ($_POST['series_id']  ?? 0);
@@ -114,6 +170,9 @@ if ($action === 'submit_manuscript' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $check->execute([$seriesId, $uid]);
     if (!$check->fetch()) {
         $flashMsg  = 'Bộ truyện không hợp lệ.';
+        $flashType = 'error';
+    } elseif ($chapterId <= 0) {
+        $flashMsg  = 'Vui lòng chọn chương tương ứng cho bản thảo.';
         $flashType = 'error';
     } else {
         $up = uploadFile(
@@ -133,7 +192,7 @@ if ($action === 'submit_manuscript' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 "SELECT COALESCE(MAX(version), 0) + 1 AS next_version
                  FROM manuscripts WHERE series_id = ? AND chapter_id = ?"
             );
-            $vStmt->execute([$seriesId, $chapterId ?: null]);
+            $vStmt->execute([$seriesId, $chapterId]);
             $nextVer = (int) $vStmt->fetchColumn();
             if ($nextVer < 1) $nextVer = 1;
 
@@ -146,7 +205,7 @@ if ($action === 'submit_manuscript' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 );
                 $mStmt->execute([
                     $seriesId,
-                    $chapterId ?: null,
+                    $chapterId,
                     $filePath,
                     $nextVer,
                     $uid
@@ -177,6 +236,12 @@ if ($action === 'submit_manuscript' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 }
+
+// Render layout giao diện (sau khi xử lý xong các hành động POST / Redirect)
+$pageTitle    = 'Bộ truyện của tôi';
+$activePage   = 'series';
+$allowedRoles = [ROLES['MANGAKA']];
+require_once __DIR__ . '/../includes/layout.php';
 
 /* ════════════════════════════════════════════════
    GET DATA
@@ -536,6 +601,10 @@ function sortUrl(string $field): string {
 
             <!-- Actions -->
             <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
+                <button onclick="openCreateChapterModal(<?= $detailSeries['id'] ?>)"
+                        class="btn btn-secondary btn-sm" style="flex:1">
+                    ➕ Thêm chương
+                </button>
                 <button onclick="openSubmitModal(<?= $detailSeries['id'] ?>)"
                         class="btn btn-primary btn-sm" style="flex:1">
                     📤 Nộp bản thảo
@@ -625,6 +694,48 @@ function sortUrl(string $field): string {
 </div>
 
 <!-- ════════════════════════════════════════════════
+     MODAL: Tạo chương mới
+     ════════════════════════════════════════════════ -->
+<div id="createChapterModal" class="modal-backdrop">
+    <div class="modal-box" style="max-width:480px">
+        <div class="modal-header">
+            <h2>➕ Tạo chương mới</h2>
+            <button onclick="document.getElementById('createChapterModal').classList.remove('open')" class="modal-close">×</button>
+        </div>
+
+        <form method="POST">
+            <input type="hidden" name="action" value="create_chapter">
+            <input type="hidden" name="series_id" id="chapterModalSeriesId" value="">
+
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Số chương *</label>
+                    <input type="number" name="chapter_number" class="form-control" min="1" required placeholder="Ví dụ: 1, 2, 3...">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Tên chương *</label>
+                    <input type="text" name="title" class="form-control" required placeholder="Ví dụ: Khởi đầu cuộc hành trình...">
+                </div>
+
+                <div class="form-group" style="margin-bottom:0">
+                    <label class="form-label">Hạn chót hoàn thành (Deadline)</label>
+                    <input type="date" name="deadline" class="form-control">
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" onclick="document.getElementById('createChapterModal').classList.remove('open')"
+                        class="btn btn-secondary">Hủy</button>
+                <button type="submit" class="btn btn-primary">
+                    💾 Tạo chương
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ════════════════════════════════════════════════
      MODAL: Nộp bản thảo
      ════════════════════════════════════════════════ -->
 <div id="submitModal" class="modal-backdrop">
@@ -654,9 +765,9 @@ function sortUrl(string $field): string {
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label">Chương tương ứng (tùy chọn)</label>
-                    <select name="chapter_id" class="form-control" id="submitChapterSelect">
-                        <option value="">— Toàn bộ series / Không liên kết chương cụ thể —</option>
+                    <label class="form-label">Chương tương ứng <span style="color:var(--red)">*</span></label>
+                    <select name="chapter_id" class="form-control" id="submitChapterSelect" required>
+                        <option value="">— Chọn chương truyện —</option>
                         <?php foreach ($chaptersForModal as $ch): ?>
                             <option value="<?= $ch['id'] ?>" data-series="<?= $ch['series_id'] ?>">
                                 <?= htmlspecialchars($ch['series_title']) ?> — Chương <?= $ch['chapter_number'] ?>: <?= htmlspecialchars($ch['title']) ?>
@@ -773,6 +884,12 @@ function sortUrl(string $field): string {
 </style>
 
 <script>
+// Open create chapter modal
+function openCreateChapterModal(seriesId) {
+    document.getElementById('chapterModalSeriesId').value = seriesId;
+    document.getElementById('createChapterModal').classList.add('open');
+}
+
 // Open submit modal and pre-select series
 function openSubmitModal(seriesId) {
     document.getElementById('submitModal').classList.add('open');

@@ -1,81 +1,273 @@
 /**
- * MangaFlow — main.js
- * Global JS for the dashboard shell
+ * MangaFlow — main.js  (v2)
+ * Global JS for the dashboard shell.
+ *
+ * Exported to window.MangaFlow:
+ *   .toast(message, type, duration)   — toast notification
+ *   .confirm(message, opts)           — promise-based confirm modal
+ *   .api(endpoint, body)              — POST helper → JSON
+ *   .upload(input, opts)              — file upload with preview
+ *   .validate(form, rules)            — client-side validation
+ *   .showLoader() / .hideLoader()     — full-page loader
  */
 
 (function () {
     'use strict';
 
-    /* ── DOM ready helper ── */
+    /* ─────────────────────────────────────────
+       DOM-ready helper
+    ───────────────────────────────────────── */
     function ready(fn) {
         if (document.readyState !== 'loading') fn();
         else document.addEventListener('DOMContentLoaded', fn);
     }
 
-    /* ════════════════════════════════
-       Sidebar toggle (mobile hamburger)
-       ════════════════════════════════ */
-    function initSidebar() {
-        const hamburger = document.getElementById('hamburgerBtn');
-        const sidebar   = document.getElementById('appSidebar');
-        const overlay   = document.getElementById('sidebarOverlay');
+    /* ─────────────────────────────────────────
+       Escape HTML (XSS-safe)
+    ───────────────────────────────────────── */
+    function esc(str) {
+        return String(str).replace(/[&<>"']/g, t => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        }[t]));
+    }
 
-        if (!hamburger || !sidebar) return;
+    /* ═══════════════════════════════════════════════════════
+       1. TOAST NOTIFICATION SYSTEM
+    ═══════════════════════════════════════════════════════ */
+    const TOAST_ICONS = {
+        success: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>`,
+        error:   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+                  </svg>`,
+        warning: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                    <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                  </svg>`,
+        info:    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                  </svg>`,
+    };
 
-        function openSidebar() {
-            sidebar.classList.add('open');
-            overlay && overlay.classList.add('active');
-            document.body.style.overflow = 'hidden';
-            hamburger.setAttribute('aria-expanded', 'true');
+    const TOAST_TITLES = { success: 'Thành công', error: 'Lỗi', warning: 'Cảnh báo', info: 'Thông tin' };
+
+    function getToastContainer() {
+        let el = document.getElementById('toastContainer');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'toastContainer';
+            document.body.appendChild(el);
         }
+        return el;
+    }
 
-        function closeSidebar() {
-            sidebar.classList.remove('open');
-            overlay && overlay.classList.remove('active');
-            document.body.style.overflow = '';
-            hamburger.setAttribute('aria-expanded', 'false');
-        }
+    /**
+     * showToast — global alias + MangaFlow.toast
+     * @param {string} message
+     * @param {'success'|'error'|'warning'|'info'} type
+     * @param {number} duration  ms (default 4000)
+     */
+    function showToast(message, type = 'info', duration = 4000) {
+        const validTypes = ['success', 'error', 'warning', 'info'];
+        if (!validTypes.includes(type)) type = 'info';
 
-        hamburger.addEventListener('click', () => {
-            sidebar.classList.contains('open') ? closeSidebar() : openSidebar();
+        const container = getToastContainer();
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.setAttribute('role', 'alert');
+        toast.setAttribute('aria-live', 'polite');
+
+        toast.innerHTML = `
+            <span class="toast-icon">${TOAST_ICONS[type]}</span>
+            <div class="toast-body">
+                <div class="toast-title">${TOAST_TITLES[type]}</div>
+                <div class="toast-message">${esc(message)}</div>
+            </div>
+            <button class="toast-close" aria-label="Đóng">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+            <div class="toast-progress" style="width:100%"></div>
+        `;
+
+        container.appendChild(toast);
+
+        // Progress bar drain
+        const progressBar = toast.querySelector('.toast-progress');
+        progressBar.style.transition = `width ${duration}ms linear`;
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => { progressBar.style.width = '0%'; });
         });
 
-        overlay && overlay.addEventListener('click', closeSidebar);
+        // Close button
+        toast.querySelector('.toast-close').addEventListener('click', () => dismissToast(toast));
 
-        // Close on ESC
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') closeSidebar();
+        // Auto dismiss
+        const timer = setTimeout(() => dismissToast(toast), duration);
+        toast._timer = timer;
+
+        // Pause on hover
+        toast.addEventListener('mouseenter', () => {
+            clearTimeout(toast._timer);
+            progressBar.style.transitionDuration = '0ms';
+        });
+        toast.addEventListener('mouseleave', () => {
+            const remaining = parseFloat(progressBar.style.width) / 100 * duration;
+            progressBar.style.transitionDuration = `${remaining}ms`;
+            progressBar.style.width = '0%';
+            toast._timer = setTimeout(() => dismissToast(toast), remaining);
         });
 
-        // Close when resized back to desktop
-        window.addEventListener('resize', () => {
-            if (window.innerWidth > 900) closeSidebar();
+        return toast;
+    }
+
+    function dismissToast(toast) {
+        if (!toast || !toast.parentNode) return;
+        clearTimeout(toast._timer);
+        toast.classList.add('toast-hiding');
+        toast.addEventListener('animationend', () => toast.remove(), { once: true });
+        setTimeout(() => toast.remove(), 400); // fallback
+    }
+
+    // Global shortcut
+    window.showToast = showToast;
+
+
+    /* ═══════════════════════════════════════════════════════
+       2. CONFIRM MODAL (promise-based)
+    ═══════════════════════════════════════════════════════ */
+
+    function ensureConfirmModal() {
+        let modal = document.getElementById('confirmModal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'confirmModal';
+            modal.innerHTML = `
+                <div class="confirm-box" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+                    <div class="confirm-icon" id="confirmIconWrap">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="12" y1="8" x2="12" y2="12"/>
+                            <line x1="12" y1="16" x2="12.01" y2="16"/>
+                        </svg>
+                    </div>
+                    <div class="confirm-title" id="confirmTitle">Xác nhận thao tác</div>
+                    <div class="confirm-message" id="confirmMessage">Bạn có chắc chắn muốn thực hiện?</div>
+                    <div class="confirm-actions">
+                        <button class="btn btn-secondary" id="confirmCancel">Hủy bỏ</button>
+                        <button class="btn btn-primary"   id="confirmOk">Xác nhận</button>
+                    </div>
+                </div>`;
+            document.body.appendChild(modal);
+
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) modal._reject && modal._reject();
+            });
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && modal.classList.contains('open')) {
+                    modal._reject && modal._reject();
+                }
+            });
+        }
+        return modal;
+    }
+
+    /**
+     * confirmAction — global alias + MangaFlow.confirm
+     * Returns a Promise that resolves on OK, rejects on Cancel.
+     *
+     * @param {string} message
+     * @param {object} opts — { title, okText, cancelText, type:'danger'|'warning'|'info' }
+     */
+    function confirmAction(message, opts = {}) {
+        const {
+            title      = 'Xác nhận thao tác',
+            okText     = 'Xác nhận',
+            cancelText = 'Hủy bỏ',
+            type       = 'danger',
+        } = opts;
+
+        return new Promise((resolve, reject) => {
+            const modal   = ensureConfirmModal();
+            const titleEl = document.getElementById('confirmTitle');
+            const msgEl   = document.getElementById('confirmMessage');
+            const okBtn   = document.getElementById('confirmOk');
+            const cancelBtn = document.getElementById('confirmCancel');
+            const iconWrap  = document.getElementById('confirmIconWrap');
+
+            if (titleEl)  titleEl.textContent  = title;
+            if (msgEl)    msgEl.textContent     = message;
+            if (okBtn)    okBtn.textContent     = okText;
+            if (cancelBtn) cancelBtn.textContent = cancelText;
+
+            // Style confirm button by type
+            if (okBtn) {
+                okBtn.className = 'btn ' + (type === 'danger' ? 'btn-primary' : type === 'warning' ? 'btn-secondary' : 'btn-primary');
+                if (type === 'danger') okBtn.style.cssText = 'background:#E63946; border-color:#E63946;';
+                else okBtn.style.cssText = '';
+            }
+
+            // Icon color
+            if (iconWrap) {
+                const colors = { danger: 'rgba(230,57,70,0.12)', warning: 'rgba(245,158,11,0.12)', info: 'rgba(59,130,246,0.12)' };
+                const borderColors = { danger: 'rgba(230,57,70,0.25)', warning: 'rgba(245,158,11,0.25)', info: 'rgba(59,130,246,0.25)' };
+                const iconColors   = { danger: '#f87171', warning: '#fbbf24', info: '#60a5fa' };
+                iconWrap.style.background   = colors[type]       || colors.danger;
+                iconWrap.style.borderColor  = borderColors[type] || borderColors.danger;
+                iconWrap.style.color        = iconColors[type]   || iconColors.danger;
+            }
+
+            modal.classList.add('open');
+            setTimeout(() => okBtn && okBtn.focus(), 50);
+
+            function cleanup() {
+                modal.classList.remove('open');
+                okBtn    && okBtn.removeEventListener('click', onOk);
+                cancelBtn && cancelBtn.removeEventListener('click', onCancel);
+                modal._reject = null;
+            }
+
+            function onOk()     { cleanup(); resolve(true); }
+            function onCancel() { cleanup(); reject(false); }
+
+            okBtn     && okBtn.addEventListener('click', onOk, { once: true });
+            cancelBtn && cancelBtn.addEventListener('click', onCancel, { once: true });
+            modal._reject = onCancel;
         });
     }
 
-    /* ════════════════════════════════
-       Notification dropdown
-       ════════════════════════════════ */
+    // Global alias (for pages that call it directly)
+    window.confirmAction = confirmAction;
+
+
+    /* ═══════════════════════════════════════════════════════
+       3. NOTIFICATION POLLING (every 30s)
+    ═══════════════════════════════════════════════════════ */
     function initNotifications() {
         const bell     = document.getElementById('notifBell');
         const dropdown = document.getElementById('notifDropdown');
         const markAll  = document.getElementById('markAllRead');
+        const notifList = dropdown ? dropdown.querySelector('.notif-list') : null;
 
         if (!bell || !dropdown) return;
 
+        // Toggle dropdown
         bell.addEventListener('click', (e) => {
             e.stopPropagation();
             dropdown.classList.toggle('open');
         });
 
-        // Close on outside click
         document.addEventListener('click', (e) => {
             if (!dropdown.contains(e.target) && e.target !== bell) {
                 dropdown.classList.remove('open');
             }
         });
 
-        // Mark all as read
+        // Mark all read
         markAll && markAll.addEventListener('click', () => {
             fetch(BASE_URL + 'api/notifications.php', {
                 method: 'POST',
@@ -83,302 +275,639 @@
                 body: 'action=mark_all_read'
             })
             .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    document.querySelectorAll('.notif-item.unread').forEach(el => {
+            .then(res => {
+                if (res.success) {
+                    dropdown.querySelectorAll('.notif-item.unread').forEach(el => {
                         el.classList.remove('unread');
-                        el.querySelector('.notif-dot') && el.querySelector('.notif-dot').remove();
-                        if (!el.querySelector('.notif-offset')) {
-                            const offset = document.createElement('div');
-                            offset.className = 'notif-offset';
-                            offset.style.cssText = 'width:8px;flex-shrink:0;';
-                            el.insertBefore(offset, el.firstChild);
-                        }
+                        const dot = el.querySelector('.notif-dot');
+                        if (dot) dot.outerHTML = '<div style="width:8px;flex-shrink:0"></div>';
                     });
-                    const countEl = document.getElementById('notifCount');
-                    if (countEl) countEl.style.display = 'none';
+                    updateBadge(0);
                 }
             })
-            .catch(() => {}); // Fail silently
+            .catch(() => {});
         });
 
-        // Event delegation for individual notification click
-        const notifList = dropdown.querySelector('.notif-list');
-        if (notifList) {
-            notifList.addEventListener('click', function(e) {
-                const item = e.target.closest('.notif-item');
-                if (!item) return;
+        // Click on individual notification
+        notifList && notifList.addEventListener('click', (e) => {
+            const item = e.target.closest('.notif-item');
+            if (!item) return;
 
-                const id   = item.dataset.id;
-                const link = item.dataset.link;
+            const id   = item.dataset.id;
+            const link = item.dataset.link;
 
-                if (item.classList.contains('unread')) {
-                    fetch(BASE_URL + 'api/notifications.php', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                        body: `action=mark_read&id=${id}`
-                    }).catch(() => {});
+            if (item.classList.contains('unread') && id) {
+                fetch(BASE_URL + 'api/notifications.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: `action=mark_read&id=${id}`
+                }).catch(() => {});
 
-                    item.classList.remove('unread');
-                    const dot = item.querySelector('.notif-dot');
-                    if (dot) dot.remove();
+                item.classList.remove('unread');
+                const dot = item.querySelector('.notif-dot');
+                if (dot) dot.outerHTML = '<div style="width:8px;flex-shrink:0"></div>';
 
-                    if (!item.querySelector('.notif-offset')) {
-                        const offset = document.createElement('div');
-                        offset.className = 'notif-offset';
-                        offset.style.cssText = 'width:8px;flex-shrink:0;';
-                        item.insertBefore(offset, item.firstChild);
-                    }
-
-                    // Decrement count badge
-                    const countEl = document.getElementById('notifCount');
-                    if (countEl) {
-                        const n = parseInt(countEl.textContent) - 1;
-                        countEl.textContent = n;
-                        if (n <= 0) countEl.style.display = 'none';
-                    }
+                const countEl = document.getElementById('notifCount');
+                if (countEl) {
+                    const n = Math.max(0, parseInt(countEl.textContent) - 1);
+                    updateBadge(n);
                 }
+            }
 
-                if (link && link !== BASE_URL) {
-                    window.location.href = link;
-                }
-            });
-        }
+            if (link && link !== BASE_URL && link !== (BASE_URL + '/')) {
+                window.location.href = link;
+            }
+        });
 
-        // Initialize maxNotifId from server-rendered notifications
+        // Track highest seen notification ID
         let maxNotifId = 0;
-        document.querySelectorAll('.notif-item[data-id]').forEach(item => {
-            const id = parseInt(item.dataset.id);
+        document.querySelectorAll('.notif-item[data-id]').forEach(el => {
+            const id = parseInt(el.dataset.id);
             if (id > maxNotifId) maxNotifId = id;
         });
 
-        // Helper: escape HTML
-        function escapeHTML(str) {
-            return str.replace(/[&<>'"]/g, 
-                tag => ({
-                    '&': '&amp;',
-                    '<': '&lt;',
-                    '>': '&gt;',
-                    "'": '&#39;',
-                    '"': '&quot;'
-                }[tag] || tag)
-            );
+        function updateBadge(count) {
+            const el = document.getElementById('notifCount');
+            if (!el) return;
+            el.textContent = count;
+            el.style.display = count > 0 ? 'flex' : 'none';
         }
 
-        // UI Updater
-        function updateNotificationsUI(notifications, unreadCount) {
-            const countEl = document.getElementById('notifCount');
-            if (countEl) {
-                countEl.textContent = unreadCount;
-                countEl.style.display = unreadCount > 0 ? 'flex' : 'none';
-            }
-
+        function renderNotifList(notifications) {
             if (!notifList) return;
 
-            if (notifications.length === 0) {
+            if (!notifications || notifications.length === 0) {
                 notifList.innerHTML = `
                     <div class="notif-empty">
                         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto 8px;opacity:0.3">
-                            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
                         </svg>
                         <p>Không có thông báo mới</p>
                     </div>`;
                 return;
             }
 
-            let hasNew = false;
-            const toastTypes = ['rank_drop', 'task_approved', 'manuscript_decision', 'task_assigned', 'task_revision', 'manuscript_review'];
-
-            // Loop in reverse order to show toast chronologically
-            for (let i = notifications.length - 1; i >= 0; i--) {
-                const notif = notifications[i];
-                const notifId = parseInt(notif.id);
-                if (notifId > maxNotifId) {
-                    maxNotifId = notifId;
-                    hasNew = true;
-
-                    if (toastTypes.includes(notif.type)) {
-                        let toastType = 'info';
-                        if (notif.type === 'rank_drop' || notif.type === 'task_revision') toastType = 'error';
-                        else if (notif.type === 'task_approved') toastType = 'success';
-                        else if (notif.type === 'manuscript_decision' || notif.type === 'manuscript_review') toastType = 'warning';
-
-                        window.MangaFlow.toast(notif.message, toastType);
-                    }
-                }
-            }
-
             let html = '';
-            notifications.forEach(notif => {
-                const isUnread = parseInt(notif.is_read) === 0;
-                const link = notif.link ? BASE_URL + notif.link.replace(/^\//, '') : '';
-                let timeStr = '';
+            notifications.forEach(n => {
+                const isUnread = !n.is_read || parseInt(n.is_read) === 0;
+                const link = n.link ? BASE_URL + n.link.replace(/^\//, '') : '';
+                let time = '';
                 try {
-                    const dt = new Date(notif.created_at.replace(/-/g, '/'));
-                    const day = String(dt.getDate()).padStart(2, '0');
-                    const month = String(dt.getMonth() + 1).padStart(2, '0');
-                    const hours = String(dt.getHours()).padStart(2, '0');
-                    const minutes = String(dt.getMinutes()).padStart(2, '0');
-                    timeStr = `${day}/${month} ${hours}:${minutes}`;
-                } catch(e) {
-                    timeStr = notif.created_at;
-                }
+                    const d = new Date(n.created_at.replace(/-/g, '/'));
+                    time = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+                } catch(e) { time = n.created_at || ''; }
 
                 html += `
-                    <div class="notif-item ${isUnread ? 'unread' : ''}"
-                         data-id="${notif.id}"
-                         data-link="${link}">
-                        ${isUnread ? '<div class="notif-dot"></div>' : '<div class="notif-offset" style="width:8px;flex-shrink:0;"></div>'}
+                    <div class="notif-item ${isUnread ? 'unread' : ''}" data-id="${n.id}" data-link="${esc(link)}">
+                        ${isUnread ? '<div class="notif-dot"></div>' : '<div style="width:8px;flex-shrink:0"></div>'}
                         <div>
-                            <div class="notif-text">${escapeHTML(notif.message)}</div>
-                            <div class="notif-time">${timeStr}</div>
+                            <div class="notif-text">${esc(n.message)}</div>
+                            <div class="notif-time">${time}</div>
                         </div>
                     </div>`;
             });
-
             notifList.innerHTML = html;
-
-            if (markAll) {
-                markAll.style.display = notifications.length > 0 ? 'inline-block' : 'none';
-            }
         }
 
-        // Polling function
-        function pollNotifications() {
-            fetch(BASE_URL + 'api/notifications.php')
+        // Polling
+        function poll() {
+            fetch(BASE_URL + 'api/notifications.php?limit=20')
             .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    updateNotificationsUI(data.notifications, data.unread_count);
-                }
+            .then(res => {
+                if (!res.success) return;
+
+                const data  = res.data || res; // handle both response shapes
+                const list  = data.notifications || res.notifications || [];
+                const count = data.unread_count  ?? res.unread_count ?? 0;
+
+                updateBadge(count);
+
+                // Detect new notifications and toast them
+                const toastMap = {
+                    rank_drop:            'error',
+                    task_revision:        'warning',
+                    task_approved:        'success',
+                    task_assigned:        'info',
+                    task_submitted:       'info',
+                    manuscript_decision:  'success',
+                    manuscript_review:    'warning',
+                    submission_approved:  'success',
+                    submission_rejected:  'error',
+                    series_cancelled:     'error',
+                    schedule_changed:     'info',
+                };
+
+                // Show toasts for new items (highest id first)
+                [...list]
+                    .filter(n => parseInt(n.id) > maxNotifId)
+                    .sort((a, b) => parseInt(a.id) - parseInt(b.id))
+                    .forEach(n => {
+                        maxNotifId = Math.max(maxNotifId, parseInt(n.id));
+                        if (toastMap[n.type]) {
+                            showToast(n.message, toastMap[n.type]);
+                        }
+                    });
+
+                renderNotifList(list);
             })
-            .catch(() => {});
+            .catch(() => {}); // silently ignore network errors
         }
 
-        // Start polling every 30 seconds
-        setInterval(pollNotifications, 30000);
+        setInterval(poll, 30_000);
     }
 
-    /* ════════════════════════════════
-       Highlight active nav link
-       ════════════════════════════════ */
+
+    /* ═══════════════════════════════════════════════════════
+       4. FILE UPLOAD PREVIEW
+    ═══════════════════════════════════════════════════════ */
+
+    /**
+     * initFileUploadPreviews — auto-attach to [data-preview-target] inputs
+     * Or call MangaFlow.upload(inputEl, { previewEl, maxMB, accept }) manually.
+     */
+    function initFileUploadPreviews() {
+        document.querySelectorAll('input[type="file"][data-preview]').forEach(input => {
+            const previewContainer = document.getElementById(input.dataset.preview);
+            if (previewContainer) {
+                attachUploadPreview(input, previewContainer);
+            }
+        });
+
+        // Drag-and-drop for .upload-zone elements
+        document.querySelectorAll('.upload-zone').forEach(zone => {
+            const input = zone.querySelector('input[type="file"]');
+            if (!input) return;
+
+            zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('dragover'); });
+            zone.addEventListener('dragleave', ()  => zone.classList.remove('dragover'));
+            zone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                zone.classList.remove('dragover');
+                if (e.dataTransfer.files.length) {
+                    // Transfer files to input
+                    const dt = new DataTransfer();
+                    [...e.dataTransfer.files].forEach(f => dt.items.add(f));
+                    input.files = dt.files;
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            });
+        });
+    }
+
+    function attachUploadPreview(input, previewContainer, opts = {}) {
+        const maxMB  = opts.maxMB || 20;
+        const maxBytes = maxMB * 1024 * 1024;
+
+        input.addEventListener('change', () => {
+            previewContainer.innerHTML = '';
+            const files = [...(input.files || [])];
+            if (!files.length) return;
+
+            files.forEach(file => {
+                if (file.size > maxBytes) {
+                    showToast(`File "${file.name}" vượt quá ${maxMB}MB.`, 'error');
+                    return;
+                }
+
+                const item = document.createElement('div');
+                item.className = 'upload-preview-item';
+
+                if (file.type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        item.innerHTML = `
+                            <img src="${e.target.result}" alt="${esc(file.name)}" loading="lazy">
+                            <div class="upload-preview-name">${esc(file.name)}</div>
+                            <button type="button" class="remove-preview" title="Xóa">✕</button>`;
+                        item.querySelector('.remove-preview').addEventListener('click', () => {
+                            item.remove();
+                            clearFileInput(input);
+                        });
+                    };
+                    reader.readAsDataURL(file);
+                } else {
+                    // Non-image (PDF, ZIP…)
+                    const ext = file.name.split('.').pop().toUpperCase();
+                    item.innerHTML = `
+                        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:6px;">
+                            <span style="font-size:1.4rem;">📄</span>
+                            <span style="font-size:0.7rem;font-weight:700;color:#a5b4fc;">${ext}</span>
+                        </div>
+                        <div class="upload-preview-name">${esc(file.name)}</div>
+                        <button type="button" class="remove-preview" title="Xóa">✕</button>`;
+                    item.querySelector('.remove-preview').addEventListener('click', () => {
+                        item.remove();
+                        clearFileInput(input);
+                    });
+                }
+
+                // File size indicator
+                const sizeMB = (file.size / 1048576).toFixed(1);
+                item.setAttribute('title', `${file.name} (${sizeMB} MB)`);
+                previewContainer.appendChild(item);
+            });
+        });
+    }
+
+    function clearFileInput(input) {
+        try {
+            input.value = '';
+            if (input.value) { // IE fallback
+                const form = document.createElement('form');
+                const parent = input.parentNode;
+                const next   = input.nextSibling;
+                form.appendChild(input);
+                form.reset();
+                parent.insertBefore(input, next);
+            }
+        } catch (e) {}
+    }
+
+
+    /* ═══════════════════════════════════════════════════════
+       5. FORM VALIDATION (client-side)
+    ═══════════════════════════════════════════════════════ */
+
+    /**
+     * validateForm — validate form fields based on HTML5 attributes + data-* hints
+     *
+     * Supported rules (via element attributes):
+     *   required
+     *   minlength / maxlength
+     *   min / max  (for number inputs)
+     *   pattern
+     *   data-match="#otherId"  (equality check)
+     *   data-msg-required / data-msg-minlength / data-msg-pattern
+     *
+     * @param {HTMLFormElement|string} formOrSelector
+     * @returns {{ valid: boolean, errors: {[name]: string} }}
+     */
+    function validateForm(formOrSelector) {
+        const form = typeof formOrSelector === 'string'
+            ? document.querySelector(formOrSelector)
+            : formOrSelector;
+
+        if (!form) return { valid: false, errors: { _form: 'Form not found' } };
+
+        const errors = {};
+        let firstError = null;
+
+        // Clear previous errors
+        form.querySelectorAll('.form-control.is-invalid').forEach(el => {
+            el.classList.remove('is-invalid');
+            el.classList.remove('is-valid');
+        });
+        form.querySelectorAll('.form-error').forEach(el => el.remove());
+
+        const inputs = [...form.querySelectorAll('input, textarea, select')];
+
+        inputs.forEach(input => {
+            if (input.disabled || input.type === 'submit' || input.type === 'button') return;
+
+            const name  = input.name || input.id || 'field';
+            const val   = input.value.trim();
+            const label = form.querySelector(`label[for="${input.id}"]`)?.textContent?.trim()
+                       || input.placeholder
+                       || name;
+            let errorMsg = '';
+
+            // required
+            if (input.required && val === '') {
+                errorMsg = input.dataset.msgRequired || `${label} là bắt buộc.`;
+            }
+            // minlength
+            else if (input.minLength > 0 && val.length < input.minLength) {
+                errorMsg = input.dataset.msgMinlength || `${label} cần ít nhất ${input.minLength} ký tự.`;
+            }
+            // maxlength
+            else if (input.maxLength > 0 && val.length > input.maxLength) {
+                errorMsg = `${label} không được vượt quá ${input.maxLength} ký tự.`;
+            }
+            // min/max for numbers
+            else if (input.type === 'number') {
+                const num = parseFloat(val);
+                if (input.min !== '' && !isNaN(parseFloat(input.min)) && num < parseFloat(input.min)) {
+                    errorMsg = `${label} phải ≥ ${input.min}.`;
+                } else if (input.max !== '' && !isNaN(parseFloat(input.max)) && num > parseFloat(input.max)) {
+                    errorMsg = `${label} phải ≤ ${input.max}.`;
+                }
+            }
+            // pattern
+            else if (input.pattern && val !== '') {
+                const regex = new RegExp('^(?:' + input.pattern + ')$');
+                if (!regex.test(val)) {
+                    errorMsg = input.dataset.msgPattern || `${label} không đúng định dạng.`;
+                }
+            }
+            // data-match (password confirm)
+            else if (input.dataset.match) {
+                const matchEl = document.getElementById(input.dataset.match.replace('#', ''));
+                if (matchEl && val !== matchEl.value.trim()) {
+                    errorMsg = `${label} không khớp.`;
+                }
+            }
+            // email
+            else if (input.type === 'email' && val !== '') {
+                if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
+                    errorMsg = `${label} không phải địa chỉ email hợp lệ.`;
+                }
+            }
+
+            if (errorMsg) {
+                errors[name] = errorMsg;
+                input.classList.add('is-invalid');
+                if (!firstError) firstError = input;
+
+                // Inject error message
+                const errEl = document.createElement('div');
+                errEl.className = 'form-error';
+                errEl.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> ${errorMsg}`;
+                input.parentNode.appendChild(errEl);
+            } else if (val !== '') {
+                input.classList.add('is-valid');
+            }
+        });
+
+        if (firstError) {
+            firstError.focus();
+            firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        return { valid: Object.keys(errors).length === 0, errors };
+    }
+
+    // Live validation: remove error on re-focus/input
+    function initLiveValidation() {
+        document.addEventListener('input', (e) => {
+            const input = e.target;
+            if (!input.matches('input, textarea, select')) return;
+            if (input.classList.contains('is-invalid') && input.value.trim() !== '') {
+                input.classList.remove('is-invalid');
+                const errEl = input.parentNode.querySelector('.form-error');
+                if (errEl) errEl.remove();
+            }
+        });
+
+        document.addEventListener('submit', (e) => {
+            const form = e.target;
+            if (!form.matches('form[data-validate]')) return;
+            const { valid } = validateForm(form);
+            if (!valid) {
+                e.preventDefault();
+                showToast('Vui lòng kiểm tra lại các trường bắt buộc.', 'warning');
+            }
+        });
+    }
+
+
+    /* ═══════════════════════════════════════════════════════
+       6. AUTO-RESIZE TEXTAREA
+    ═══════════════════════════════════════════════════════ */
+    function initAutoResizeTextareas() {
+        function resize(el) {
+            el.style.height = 'auto';
+            el.style.height = (el.scrollHeight) + 'px';
+        }
+
+        document.querySelectorAll('textarea.auto-resize').forEach(ta => {
+            ta.addEventListener('input', () => resize(ta));
+            resize(ta); // initial
+        });
+
+        // MutationObserver to catch dynamically added textareas
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach(m => m.addedNodes.forEach(node => {
+                if (node.nodeType !== 1) return;
+                const tas = node.matches('textarea.auto-resize')
+                    ? [node]
+                    : [...node.querySelectorAll('textarea.auto-resize')];
+                tas.forEach(ta => {
+                    ta.addEventListener('input', () => resize(ta));
+                    resize(ta);
+                });
+            }));
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+    }
+
+
+    /* ═══════════════════════════════════════════════════════
+       7. CHARACTER COUNTER for textareas / inputs with maxlength
+    ═══════════════════════════════════════════════════════ */
+    function initCharCounters() {
+        document.querySelectorAll('[data-char-counter]').forEach(el => {
+            const max = parseInt(el.maxLength || el.dataset.maxLength || 0);
+            if (!max) return;
+
+            const counter = document.createElement('div');
+            counter.className = 'char-counter';
+            counter.textContent = `0 / ${max}`;
+            el.parentNode.appendChild(counter);
+
+            el.addEventListener('input', () => {
+                const len = el.value.length;
+                counter.textContent = `${len} / ${max}`;
+                counter.classList.toggle('warn',  len >= max * 0.8 && len < max);
+                counter.classList.toggle('limit', len >= max);
+            });
+        });
+    }
+
+
+    /* ═══════════════════════════════════════════════════════
+       8. MOBILE SIDEBAR
+    ═══════════════════════════════════════════════════════ */
+    function initSidebar() {
+        const hamburger = document.getElementById('hamburgerBtn');
+        const sidebar   = document.getElementById('appSidebar');
+        const overlay   = document.getElementById('sidebarOverlay');
+
+        if (!hamburger || !sidebar) return;
+
+        function open() {
+            sidebar.classList.add('open');
+            overlay && overlay.classList.add('active');
+            document.body.style.overflow = 'hidden';
+            hamburger.setAttribute('aria-expanded', 'true');
+        }
+
+        function close() {
+            sidebar.classList.remove('open');
+            overlay && overlay.classList.remove('active');
+            document.body.style.overflow = '';
+            hamburger.setAttribute('aria-expanded', 'false');
+        }
+
+        hamburger.addEventListener('click', () =>
+            sidebar.classList.contains('open') ? close() : open()
+        );
+
+        overlay   && overlay.addEventListener('click', close);
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+        window.addEventListener('resize', () => { if (window.innerWidth > 900) close(); });
+    }
+
+
+    /* ═══════════════════════════════════════════════════════
+       9. PAGE LOADER
+    ═══════════════════════════════════════════════════════ */
+    function ensureLoader() {
+        let loader = document.getElementById('pageLoader');
+        if (!loader) {
+            loader = document.createElement('div');
+            loader.id = 'pageLoader';
+            loader.className = 'page-loader hidden';
+            loader.innerHTML = `
+                <div class="loading-spinner lg"></div>
+                <span>Đang xử lý…</span>`;
+            document.body.appendChild(loader);
+        }
+        return loader;
+    }
+
+    function showLoader(msg = 'Đang xử lý…') {
+        const loader = ensureLoader();
+        loader.querySelector('span').textContent = msg;
+        loader.classList.remove('hidden');
+    }
+
+    function hideLoader() {
+        const loader = document.getElementById('pageLoader');
+        loader && loader.classList.add('hidden');
+    }
+
+
+    /* ═══════════════════════════════════════════════════════
+       10. ACTIVE NAV + CONFIRM DATA-ATTR
+    ═══════════════════════════════════════════════════════ */
     function initActiveNav() {
         const current = window.location.pathname.replace(/\\/g, '/');
         document.querySelectorAll('.nav-link[data-path]').forEach(link => {
-            const path = link.dataset.path.replace(/\\/g, '/');
-            if (current.endsWith(path)) {
+            if (current.endsWith(link.dataset.path.replace(/\\/g, '/'))) {
                 link.classList.add('active');
             }
         });
     }
 
-    /* ════════════════════════════════
-       Auto-dismiss flash alerts
-       ════════════════════════════════ */
+    function initDataConfirm() {
+        document.querySelectorAll('[data-confirm]').forEach(el => {
+            el.addEventListener('click', async function (e) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                const msg = this.dataset.confirm || 'Bạn có chắc chắn?';
+                try {
+                    await confirmAction(msg, { type: 'danger' });
+                    // Proceed: follow href or submit form
+                    if (this.tagName === 'A') {
+                        window.location.href = this.href;
+                    } else if (this.form) {
+                        this.form.submit();
+                    } else {
+                        this.click(); // fire original click (won't re-trigger due to guard)
+                    }
+                } catch { /* cancelled */ }
+            });
+        });
+    }
+
     function initAlerts() {
         document.querySelectorAll('.alert[data-auto-dismiss]').forEach(el => {
             const ms = parseInt(el.dataset.autoDismiss) || 4000;
             setTimeout(() => {
-                el.style.transition = 'opacity 0.4s, margin-top 0.4s, padding 0.4s, height 0.4s';
-                el.style.opacity = '0';
+                el.style.transition = 'opacity 0.4s';
+                el.style.opacity    = '0';
                 setTimeout(() => el.remove(), 420);
             }, ms);
         });
-
-        // Manual close button
         document.querySelectorAll('.alert-close').forEach(btn => {
             btn.addEventListener('click', function () {
-                this.closest('.alert').remove();
+                this.closest('.alert')?.remove();
             });
         });
     }
 
-    /* ════════════════════════════════
-       Confirm dialogs on delete/danger
-       ════════════════════════════════ */
-    function initConfirm() {
-        document.querySelectorAll('[data-confirm]').forEach(el => {
-            el.addEventListener('click', function (e) {
-                const msg = this.dataset.confirm || 'Bạn có chắc chắn muốn thực hiện hành động này?';
-                if (!window.confirm(msg)) e.preventDefault();
-            });
-        });
-    }
 
-    /* ════════════════════════════════
-       AJAX utility (used by sub-pages)
-       ════════════════════════════════ */
+    /* ═══════════════════════════════════════════════════════
+       11. PUBLIC API  (window.MangaFlow)
+    ═══════════════════════════════════════════════════════ */
     window.MangaFlow = {
         /**
-         * Perform a JSON POST to the API
-         * @param {string} endpoint  — relative to BASE_URL + 'api/'
-         * @param {object} body      — key/value pairs
-         * @returns {Promise}
+         * POST to api/<endpoint> and parse JSON.
+         * @param {string} endpoint — filename inside api/, e.g. 'notifications.php'
+         * @param {object|FormData} body
+         * @param {'POST'|'PUT'|'DELETE'} method
          */
-        api(endpoint, body = {}) {
-            const params = new URLSearchParams(body);
+        api(endpoint, body = {}, method = 'POST') {
+            let headers = {};
+            let bodyData;
+
+            if (body instanceof FormData) {
+                bodyData = body;
+            } else if (typeof body === 'object') {
+                headers['Content-Type'] = 'application/x-www-form-urlencoded';
+                bodyData = new URLSearchParams(body).toString();
+            } else {
+                bodyData = body;
+            }
+
             return fetch(BASE_URL + 'api/' + endpoint, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: params.toString()
+                method,
+                headers,
+                body: method !== 'GET' ? bodyData : undefined,
             }).then(r => {
-                if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                if (!r.ok) throw new Error(`HTTP ${r.status}: ${r.statusText}`);
                 return r.json();
             });
         },
 
-        /** Show a toast notification */
-        toast(message, type = 'info', duration = 3500) {
-            const container = document.getElementById('toastContainer') || (() => {
-                const el = document.createElement('div');
-                el.id = 'toastContainer';
-                el.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;';
-                document.body.appendChild(el);
-                return el;
-            })();
+        /** POST JSON body to endpoint */
+        apiJson(endpoint, body = {}, method = 'POST') {
+            return fetch(BASE_URL + 'api/' + endpoint, {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            }).then(r => r.json());
+        },
 
-            const colors = {
-                success: '#10b981', error: '#E63946',
-                warning: '#f59e0b', info: '#3b82f6'
-            };
+        toast:   showToast,
+        confirm: confirmAction,
 
-            const toast = document.createElement('div');
-            toast.style.cssText = `
-                background:#1e2547;border:1px solid rgba(255,255,255,0.08);
-                color:#f0f0f8;padding:12px 18px;border-radius:10px;
-                font-size:0.875rem;font-family:Inter,sans-serif;
-                box-shadow:0 8px 30px rgba(0,0,0,0.4);
-                display:flex;align-items:center;gap:10px;max-width:320px;
-                border-left:3px solid ${colors[type] || colors.info};
-                animation:slideInRight 0.2s ease;
-            `;
-            toast.innerHTML = `<span>${message}</span>`;
+        /** Validate a form. Returns { valid, errors }. */
+        validate: validateForm,
 
-            // inject animation if not already present
-            if (!document.getElementById('toastKeyframes')) {
-                const s = document.createElement('style');
-                s.id = 'toastKeyframes';
-                s.textContent = '@keyframes slideInRight{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}';
-                document.head.appendChild(s);
-            }
+        /**
+         * Attach upload preview to an input element.
+         * @param {HTMLInputElement} input
+         * @param {HTMLElement|string} container — element or selector
+         * @param {{ maxMB?: number }} opts
+         */
+        upload(input, container, opts = {}) {
+            const el = typeof container === 'string'
+                ? document.querySelector(container)
+                : container;
+            if (input && el) attachUploadPreview(input, el, opts);
+        },
 
-            container.appendChild(toast);
-            setTimeout(() => {
-                toast.style.opacity = '0';
-                toast.style.transition = 'opacity 0.3s';
-                setTimeout(() => toast.remove(), 320);
-            }, duration);
-        }
+        showLoader,
+        hideLoader,
+        esc,
     };
 
-    /* ════════════════════════════════
-       Init all on DOM ready
-       ════════════════════════════════ */
+
+    /* ═══════════════════════════════════════════════════════
+       INIT on DOM ready
+    ═══════════════════════════════════════════════════════ */
     ready(() => {
         initSidebar();
         initNotifications();
         initActiveNav();
         initAlerts();
-        initConfirm();
+        initDataConfirm();
+        initFileUploadPreviews();
+        initLiveValidation();
+        initAutoResizeTextareas();
+        initCharCounters();
     });
+
 })();
