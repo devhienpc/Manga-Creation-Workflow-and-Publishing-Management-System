@@ -4,6 +4,9 @@
  * Yêu cầu: $currentUser đã được set (từ header.php parent hoặc dashboard)
  * Biến tùy chọn: $pageTitle (string)
  */
+require_once __DIR__ . '/../config/auth.php';
+require_once __DIR__ . '/../config/db.php';
+
 if (!isset($currentUser)) {
     $currentUser = getCurrentUser();
 }
@@ -43,6 +46,7 @@ $roleLabels = [
     'assistant' => 'Trợ lý',
     'editor'    => 'Biên tập',
     'board'     => 'Ban BBT',
+    'admin'     => 'Admin',
 ];
 $roleLabel = $roleLabels[$currentUser['role']] ?? ucfirst($currentUser['role']);
 ?>

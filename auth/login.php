@@ -15,6 +15,7 @@ function redirectByRole($role) {
         case ROLES['ASSISTANT']: header('Location: ' . BASE_URL . 'assistant/dashboard.php'); break;
         case ROLES['EDITOR']:   header('Location: ' . BASE_URL . 'editor/dashboard.php');   break;
         case ROLES['BOARD']:    header('Location: ' . BASE_URL . 'board/dashboard.php');    break;
+        case 'admin':           header('Location: ' . BASE_URL . 'admin/index.php');        break;
         default: header('Location: ' . BASE_URL . 'auth/login.php');
     }
     exit();
@@ -40,22 +41,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($errors)) {
         $db = getDB();
         $stmt = $db->prepare(
-            "SELECT id, username, email, password, role, avatar FROM users WHERE email = ? LIMIT 1"
+            "SELECT id, username, email, password, role, avatar, is_active FROM users WHERE email = ? LIMIT 1"
         );
         $stmt->execute([$email]);
         $user = $stmt->fetch();
 
         if ($user && password_verify($password, $user['password'])) {
-            // Lưu session
-            $_SESSION['user'] = [
-                'id'       => $user['id'],
-                'username' => $user['username'],
-                'fullname' => $user['username'],
-                'email'    => $user['email'],
-                'role'     => $user['role'],
-                'avatar'   => $user['avatar'],
-            ];
-            redirectByRole($user['role']);
+            if (isset($user['is_active']) && !$user['is_active']) {
+                $errors['general'] = 'Tài khoản của bạn đã bị vô hiệu hóa.';
+            } else {
+                // Lưu session
+                $_SESSION['user'] = [
+                    'id'       => $user['id'],
+                    'username' => $user['username'],
+                    'fullname' => $user['username'],
+                    'email'    => $user['email'],
+                    'role'     => $user['role'],
+                    'avatar'   => $user['avatar'],
+                ];
+                redirectByRole($user['role']);
+            }
         } else {
             $errors['general'] = 'Email hoặc mật khẩu không chính xác.';
         }

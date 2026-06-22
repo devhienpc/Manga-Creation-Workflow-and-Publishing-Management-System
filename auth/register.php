@@ -9,6 +9,7 @@ function redirectByRole($role) {
         case ROLES['ASSISTANT']: header('Location: ' . BASE_URL . 'assistant/dashboard.php'); break;
         case ROLES['EDITOR']:   header('Location: ' . BASE_URL . 'editor/dashboard.php');   break;
         case ROLES['BOARD']:    header('Location: ' . BASE_URL . 'board/dashboard.php');    break;
+        case 'admin':           header('Location: ' . BASE_URL . 'admin/index.php');        break;
         default: header('Location: ' . BASE_URL . 'auth/login.php');
     }
     exit();

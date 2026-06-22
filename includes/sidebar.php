@@ -15,6 +15,7 @@ $roleLabels = [
     'assistant' => 'Trợ lý Manga',
     'editor'    => 'Biên tập viên',
     'board'     => 'Ban biên tập',
+    'admin'     => 'Quản trị viên',
 ];
 
 // Định nghĩa menu theo role
@@ -75,6 +76,15 @@ $menus = [
             'items' => [
                 ['page' => 'ranking',   'label' => 'Xếp hạng tổng quát', 'href' => BASE_URL . 'board/ranking.php',   'icon' => 'award'],
                 ['page' => 'decisions', 'label' => 'Quyết định xuất bản', 'href' => BASE_URL . 'board/decisions.php', 'icon' => 'check-circle'],
+                ['page' => 'admin_dashboard', 'label' => 'Quản trị hệ thống', 'href' => BASE_URL . 'admin/index.php', 'icon' => 'grid'],
+            ]
+        ],
+    ],
+    'admin' => [
+        [
+            'label' => 'QUẢN TRỊ HỆ THỐNG',
+            'items' => [
+                ['page' => 'admin_dashboard', 'label' => 'Dashboard Admin', 'href' => BASE_URL . 'admin/index.php', 'icon' => 'grid'],
             ]
         ],
     ],

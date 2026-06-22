@@ -18,7 +18,7 @@ $relativeRoot = '';
 if (!empty($docRoot) && strpos($projectRoot, $docRoot) === 0) {
     $relativeRoot = substr($projectRoot, strlen($docRoot));
 } else {
-    $relativeRoot = preg_replace('/(config|auth|mangaka|assistant|editor|board|api|includes)\/.*$/i', '', $scriptName);
+    $relativeRoot = preg_replace('/(config|auth|mangaka|assistant|editor|board|api|includes|admin)\/.*$/i', '', $scriptName);
 }
 $relativeRoot = '/' . ltrim(str_replace('\\', '/', $relativeRoot), '/');
 $relativeRoot = rtrim($relativeRoot, '/') . '/';
@@ -34,7 +34,8 @@ define('ROLES', [
     'MANGAKA' => 'mangaka',
     'ASSISTANT' => 'assistant',
     'EDITOR' => 'editor',
-    'BOARD' => 'board'
+    'BOARD' => 'board',
+    'ADMIN' => 'admin'
 ]);
 
 // Định nghĩa vai trò dưới dạng hằng số đơn lẻ (Tương thích ngược)
@@ -42,6 +43,7 @@ define('ROLE_MANGAKA', 'mangaka');
 define('ROLE_ASSISTANT', 'assistant');
 define('ROLE_EDITOR', 'editor');
 define('ROLE_BOARD', 'board');
+define('ROLE_ADMIN', 'admin');
 
 // Định nghĩa các trạng thái (STATUS)
 define('STATUS', [
