@@ -38,7 +38,7 @@ try {
     $stmt = getDB()->prepare("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0");
     $stmt->execute([$currentUser['id']]);
     $unreadCount = (int) $stmt->fetchColumn();
-} catch (\Throwable $e) {}
+} catch (\Throwable $e) {error_log("Lỗi đếm thông báo (layout.php): " . $e->getMessage());}
 ?>
 <!DOCTYPE html>
 <html lang="vi">

@@ -69,14 +69,14 @@ $monthlyList = $stmt->fetchAll();
 $barLabels = [];
 $barValues = [];
 for ($i = 5; $i >= 0; $i--) {
-    $d = strtotime("-$i month");
+    $d = strtotime("first day of this month -$i month");
     $m = (int)date('m', $d);
     $y = (int)date('Y', $d);
     
     $barLabels[] = "Tháng $m/$y";
     
-    // Truy vấn doanh thu của từng tháng tương ứng
-    $stmt = $db->prepare("SELECT total FROM earnings WHERE assistant_id = ? AND month = ? AND year = ?");
+    // Đã thêm SUM(total) vào truy vấn
+    $stmt = $db->prepare("SELECT SUM(total) FROM earnings WHERE assistant_id = ? AND month = ? AND year = ?");
     $stmt->execute([$uid, $m, $y]);
     $totalVal = (float)$stmt->fetchColumn();
     $barValues[] = $totalVal ?: 0.0;

@@ -93,7 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     $ext = $allowedMimes[$mime];
                 }
                 
-                $filename = 'task_' . $taskId . '_' . uniqid() . '.' . $ext;
+                $filename = 'task_' . $taskId . '_' . bin2hex(random_bytes(8)) . '.' . $ext;
                 $destDir  = UPLOAD_PATH . 'tasks';
                 $destPath = $destDir . '/' . $filename;
                 
@@ -162,28 +162,39 @@ $stmt = $db->prepare($query);
 $stmt->execute($params);
 $taskList = $stmt->fetchAll();
 
+// TỐI ƯU HIỆU NĂNG: Lấy toàn bộ thông báo revision của user ra trước 1 lần duy nhất
+$revStmt = $db->prepare("
+    SELECT message 
+    FROM notifications 
+    WHERE user_id = ? AND type = 'task_revision' 
+    ORDER BY created_at DESC
+");
+$revStmt->execute([$uid]);
+$allRevisions = $revStmt->fetchAll(PDO::FETCH_COLUMN);
+
 // Tổ hợp dữ liệu JSON cho Javascript xử lý Modal
 $tasksJson = [];
 foreach ($taskList as $task) {
     $revisionNote = '';
+    
     if ($task['status'] === 'revision') {
-        // Tìm thông báo yêu cầu sửa đổi liên quan đến nhiệm vụ này
-        try {
-            $rStmt = $db->prepare("
-                SELECT message FROM notifications 
-                WHERE user_id = ? AND type = 'task_revision' AND message LIKE ? 
-                ORDER BY created_at DESC LIMIT 1
-            ");
-            $rStmt->execute([$uid, "%" . $task['task_type'] . "%"]);
-            $notifMsg = $rStmt->fetchColumn();
-            
-            if ($notifMsg && strpos($notifMsg, 'Ghi chú:') !== false) {
-                $parts = explode('Ghi chú:', $notifMsg);
-                $revisionNote = trim($parts[1]);
-            } else {
-                $revisionNote = $notifMsg ?: 'Yêu cầu sửa lại từ họa sĩ.';
+        $notifMsg = '';
+        $targetType = $task['task_type'];
+        
+        // Tìm thông báo khớp với task_type từ mảng đã tải sẵn (thay vì query DB)
+        foreach ($allRevisions as $msg) {
+            if (strpos($msg, $targetType) !== false) {
+                $notifMsg = $msg;
+                break; // Lấy cái mới nhất đầu tiên tìm thấy
             }
-        } catch (\Throwable $e) {}
+        }
+        
+        if ($notifMsg && strpos($notifMsg, 'Ghi chú:') !== false) {
+            $parts = explode('Ghi chú:', $notifMsg);
+            $revisionNote = trim($parts[1]);
+        } else {
+            $revisionNote = $notifMsg ?: 'Yêu cầu sửa lại từ họa sĩ.';
+        }
     }
 
     $tasksJson[$task['id']] = [
@@ -204,8 +215,7 @@ foreach ($taskList as $task) {
     ];
 }
 
-$jsTasksData = json_encode($tasksJson);
-
+$jsTasksData = json_encode($tasksJson, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
 /* Nhãn hiển thị */
 $taskTypeLabels = [
     'background' => ['Phông nền', '#10b981', 'rgba(16,185,129,.12)'],
@@ -623,9 +633,9 @@ function closeTaskModal() {
 // Định dạng ngày
 function formatDate(dateStr) {
     if (!dateStr) return '';
-    const parts = dateStr.split('-');
-    if (parts.length !== 3) return dateStr;
-    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr; // Trả về nguyên gốc nếu chuỗi lỗi
+    return d.toLocaleDateString('vi-VN'); // Tự động định dạng chuẩn DD/MM/YYYY
 }
 </script>
 
