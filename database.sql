@@ -23,6 +23,7 @@ CREATE TABLE users (
     role ENUM('mangaka', 'assistant', 'editor', 'board') NOT NULL,
     avatar VARCHAR(255) DEFAULT NULL,
     bio TEXT DEFAULT NULL,
+    is_active INT NOT NULL DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
