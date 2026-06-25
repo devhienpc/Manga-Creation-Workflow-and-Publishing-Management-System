@@ -613,6 +613,10 @@ function sortUrl(string $field): string {
                    class="btn btn-secondary btn-sm" style="flex:1">
                     🎨 Giao task trợ lý
                 </a>
+                <a href="<?= BASE_URL ?>mangaka/manuscripts.php?filter_series=<?= $detailSeries['id'] ?>"
+                   class="btn btn-secondary btn-sm" style="flex:1">
+                    👁 Xem ghi chú
+                </a>
             </div>
         </div>
     </div>

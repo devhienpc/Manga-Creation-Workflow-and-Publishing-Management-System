@@ -4,47 +4,20 @@
  * Trang danh sách thông báo dành cho họa sĩ Mangaka.
  */
 
-// Bắt đầu session nếu chưa có
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-
-// 1. KẾT NỐI CSDL & BẢO MẬT:
-// Kiểm tra hoặc tự động tạo session ảo để chạy test không bị lỗi
-if (!isset($_SESSION['user_id'])) {
-    $_SESSION['user_id'] = 1;
-}
-if (!isset($_SESSION['role'])) {
-    $_SESSION['role'] = 'mangaka';
-}
-// Đảm bảo khớp với cơ chế layout.php của hệ thống sử dụng $_SESSION['user']
-if (!isset($_SESSION['user'])) {
-    $_SESSION['user'] = [
-        'id'       => $_SESSION['user_id'],
-        'username' => 'mangaka',
-        'role'     => $_SESSION['role'],
-        'email'    => 'mangaka@mangasystem.com'
-    ];
-}
-
-// Nhúng file cấu hình CSDL theo đúng yêu cầu bằng lệnh:
-require_once __DIR__ . '/../config/db.php';
-
-// Gọi hàm kết nối bằng cách gán biến $pdo = getDB();
-$pdo = getDB();
-
 // Cấu hình các biến cho layout.php
 require_once __DIR__ . '/../config/constants.php';
 $pageTitle    = 'Thông báo';
-$activePage   = 'notifications';
+$activePage   = 'notifs';
 $allowedRoles = [ROLES['MANGAKA']];
 
-// Nhúng file layout.php (Tự động nhúng sidebar.php, header.php và tạo app-shell)
+// Nhúng file layout.php (Xác thực & phân quyền tự động, cung cấp $currentUser, $db)
 require_once __DIR__ . '/../includes/layout.php';
+
+$pdo = getDB();
 
 // 2. TRUY VẤN DỮ LIỆU (SQL):
 // Lấy danh sách thông báo trước khi đánh dấu đã đọc để người dùng thấy trạng thái thực tế khi vừa tải trang
-$userId = $_SESSION['user_id'];
+$userId = $currentUser['id'];
 $stmt = $pdo->prepare("SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC");
 $stmt->execute([$userId]);
 $notifications = $stmt->fetchAll();
@@ -75,6 +48,14 @@ function getNotifDetails(string $type): array {
         'rank_drop' => [
             'title' => 'Cảnh báo tụt hạng nguy hiểm',
             'icon'  => '⚠️'
+        ],
+        'defense_approved' => [
+            'title' => 'Đơn giải trình được chấp nhận',
+            'icon'  => '🛡️'
+        ],
+        'defense_rejected' => [
+            'title' => 'Đơn giải trình bị bác bỏ',
+            'icon'  => '🛡️'
         ]
     ];
 

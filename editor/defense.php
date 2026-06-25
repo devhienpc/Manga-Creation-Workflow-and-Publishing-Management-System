@@ -84,7 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
             // Lấy thông tin liên quan của đơn để cập nhật bản thảo và gửi thông báo
             $stmtInfo = $db->prepare("
-                SELECT d.manuscript_id, d.mangaka_id, d.chapter_id, c.chapter_number, s.title AS series_title 
+                SELECT d.manuscript_id, d.mangaka_id, d.chapter_id, c.chapter_number, c.series_id, s.title AS series_title 
                 FROM defenses d
                 JOIN chapters c ON d.chapter_id = c.id
                 JOIN series s ON c.series_id = s.id
@@ -99,25 +99,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $chapterId    = $info['chapter_id'];
                 $chapterNo    = $info['chapter_number'];
                 $seriesTitle  = $info['series_title'];
+                $seriesId     = $info['series_id'];
 
                 // Cập nhật trạng thái bản thảo
                 if ($manuscriptId) {
+                    $mStatus = $action === 'approved' ? 'approved' : 'rejected';
                     $stmtManuscript = $db->prepare("UPDATE manuscripts SET status = ? WHERE id = ?");
-                    $stmtManuscript->execute([$action, $manuscriptId]);
+                    $stmtManuscript->execute([$mStatus, $manuscriptId]);
                 }
 
-                // Cập nhật trạng thái chương truyện (Nếu duyệt giải trình thì cho phép duyệt chương)
+                // Cập nhật trạng thái chương truyện và đệ trình lên BBT
                 if ($action === 'approved') {
-                    $stmtChapter = $db->prepare("UPDATE chapters SET status = 'approved' WHERE id = ?");
+                    $stmtChapter = $db->prepare("UPDATE chapters SET status = 'review' WHERE id = ?");
                     $stmtChapter->execute([$chapterId]);
+
+                    $existStmt = $db->prepare("SELECT id FROM submissions WHERE manuscript_id = ?");
+                    $existStmt->execute([$manuscriptId]);
+                    $existSubId = $existStmt->fetchColumn();
+
+                    $boardNotes = "Họa sĩ đã giải trình thành công và được Biên tập viên duyệt.";
+                    if ($existSubId) {
+                        $db->prepare(
+                            "UPDATE submissions SET status='pending', board_notes=?, submitted_at=CURRENT_TIMESTAMP WHERE id=?"
+                        )->execute([$boardNotes, $existSubId]);
+                    } else {
+                        $db->prepare(
+                            "INSERT INTO submissions (series_id, manuscript_id, submitted_by, status, board_notes, submitted_at)
+                             VALUES (?, ?, ?, 'pending', ?, CURRENT_TIMESTAMP)"
+                        )->execute([$seriesId, $manuscriptId, $mangakaId, $boardNotes]);
+                    }
+
+                    // Gửi thông báo cho Board
+                    $boardUsers = $db->query("SELECT id FROM users WHERE role = 'board'")->fetchAll(PDO::FETCH_COLUMN);
+                    $boardInsert = $db->prepare(
+                        "INSERT INTO notifications (user_id, type, message, link)
+                         VALUES (?, 'manuscript_review', ?, 'board/voting.php')"
+                    );
+                    foreach ($boardUsers as $bid) {
+                        $boardInsert->execute([
+                            $bid,
+                            "Yêu cầu phê duyệt (từ đơn giải trình): \"{$seriesTitle}\" - Chương {$chapterNo} đang chờ bỏ phiếu.",
+                        ]);
+                    }
                 }
 
                 // Gửi thông báo hệ thống đến Họa sĩ (Mangaka)
                 $notifType = 'defense_' . $action;
                 if ($action === 'approved') {
-                    $message = "Yêu cầu giải trình của bạn cho tác phẩm \"{$seriesTitle}\" - Chương {$chapterNo} đã được CHẤP NHẬN. Bản thảo đã chuyển sang trạng thái Đã duyệt!";
+                    $message = "Yêu cầu giải trình của bạn cho tác phẩm \"{$seriesTitle}\" - Chương {$chapterNo} đã được CHẤP NHẬN. Bản thảo đã chuyển tiếp lên Ban biên tập để phê duyệt!";
                 } else {
-                    $message = "Yêu cầu giải trình của bạn cho tác phẩm \"{$seriesTitle}\" - Chương {$chapterNo} đã bị BÁC BỎ. Quyết định hủy bỏ bản thảo được giữ nguyên.";
+                    $message = "Yêu cầu giải trình của bạn cho tác phẩm \"{$seriesTitle}\" - Chương {$chapterNo} đã bị BÁC BỎ. Quyết định từ chối bản thảo được giữ nguyên.";
                 }
                 $link = 'mangaka/dashboard.php';
 
