@@ -140,9 +140,9 @@ $currentMenuGroups = $menus[$role] ?? [];
                        data-path="<?= htmlspecialchars(parse_url($item['href'], PHP_URL_PATH)) ?>">
                         <?= navIcon($item['icon']) ?>
                         <span><?= htmlspecialchars($item['label']) ?></span>
-                        <?php if (!empty($item['badge']) && $unreadCount > 0): ?>
-                            <span class="nav-badge"><?= $unreadCount ?></span>
-                        <?php endif; ?>
+                        <?php if (!empty($item['badge']) && ($unreadCount ?? 0) > 0): ?>
+    <span class="nav-badge"><?= $unreadCount ?? 0 ?></span>
+<?php endif; ?>
                     </a>
                 </div>
             <?php endforeach; ?>

@@ -1,16 +1,16 @@
 <?php
+<?php
 /**
  * assistant/tasks.php
  * Quản lý danh sách nhiệm vụ và nộp kết quả của Trợ lý Manga (Assistant).
  */
 
 require_once __DIR__ . '/../config/constants.php';
-$pageTitle    = 'Nhiệm vụ của tôi';
-$activePage   = 'tasks';
-$allowedRoles = [ROLES['ASSISTANT']];
-require_once __DIR__ . '/../includes/layout.php';
 
+// 1. KHỞI TẠO KẾT NỐI DB VÀ THÔNG TIN USER TRƯỚC
 $db  = getDB();
+// Gọi hàm getCurrentUser() (hàm này đã có sẵn theo như code sidebar của bạn)
+$currentUser = getCurrentUser(); 
 $uid = $currentUser['id'];
 
 $flashMsg = '';
@@ -23,7 +23,7 @@ if (isset($_GET['flash']) && $_GET['flash'] === 'success') {
 }
 
 /* ══════════════════════════════════════════════════
-   XỬ LÝ SUBMIT FILE KẾT QUẢ (POST)
+   2. XỬ LÝ SUBMIT FILE KẾT QUẢ (POST) - ĐẶT TRƯỚC LAYOUT
    ══════════════════════════════════════════════════ */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'submit_task_result') {
     $taskId = (int)($_POST['task_id'] ?? 0);
@@ -67,7 +67,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 'image/png' => 'png',
                 'application/zip' => 'zip',
                 'application/x-zip-compressed' => 'zip',
-                // Photoshop
                 'image/vnd.adobe.photoshop' => 'psd',
                 'image/photoshop' => 'psd',
                 'application/photoshop' => 'psd',
@@ -114,7 +113,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     $notif = $db->prepare("INSERT INTO notifications (user_id, type, message, link) VALUES (?, 'task_submitted', ?, ?)");
                     $notif->execute([$task['assigned_by'], $notifMsg, $link]);
                     
-                    // Chuyển hướng tránh double submit
+                    // Chuyển hướng bây giờ sẽ hoạt động bình thường!
                     header('Location: ' . BASE_URL . 'assistant/tasks.php?flash=success');
                     exit();
                 } else {
@@ -125,6 +124,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
     }
 }
+
+// 3. SAU KHI XỬ LÝ XONG LOGIC TRÊN, MỚI GỌI LAYOUT ĐỂ XUẤT HTML RA MÀN HÌNH
+$pageTitle    = 'Nhiệm vụ của tôi';
+$activePage   = 'tasks';
+$allowedRoles = [ROLES['ASSISTANT']];
+require_once __DIR__ . '/../includes/layout.php';
 
 /* ══════════════════════════════════════════════════
    DANH SÁCH NHIỆM VỤ (QUERY & FILTER)
