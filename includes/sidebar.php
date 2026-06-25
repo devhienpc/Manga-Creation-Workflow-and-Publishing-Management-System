@@ -33,6 +33,7 @@ $menus = [
             'items' => [
                 ['page' => 'tasks',    'label' => 'Task Manager',   'href' => BASE_URL . 'mangaka/tasks.php',   'icon' => 'check-square'],
                 ['page' => 'ranking',  'label' => 'BXH Truyện',     'href' => BASE_URL . 'mangaka/ranking.php', 'icon' => 'trending-up'],
+                ['page' => 'defense',  'label' => 'Bảo vệ tác phẩm', 'href' => BASE_URL . 'mangaka/defense.php', 'icon' => 'shield'],
                 ['page' => 'notifs',   'label' => 'Thông báo',      'href' => BASE_URL . 'mangaka/notifications.php', 'icon' => 'bell', 'badge' => true],
             ]
         ],

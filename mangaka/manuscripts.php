@@ -1,13 +1,13 @@
 <?php
 /**
- * editor/manuscripts.php
- * Quản lý bản thảo tác phẩm, đọc duyệt và ghi nhận chú thích (Annotation) dành cho Biên tập viên.
+ * mangaka/manuscripts.php
+ * Trình xem ghi chú bản thảo dành cho Họa sĩ (Mangaka) - Chỉ đọc.
  */
 
 require_once __DIR__ . '/../config/constants.php';
-$pageTitle    = 'Bản thảo duyệt';
-$activePage   = 'manuscripts';
-$allowedRoles = [ROLES['EDITOR']];
+$pageTitle    = 'Ghi chú bản thảo';
+$activePage   = 'series';
+$allowedRoles = [ROLES['MANGAKA']];
 require_once __DIR__ . '/../includes/layout.php';
 
 $db  = getDB();
@@ -22,7 +22,9 @@ $selectedManuscriptId = (int)($_GET['manuscript_id'] ?? 0);
 /* ══════════════════════════════════════════════════
    1. DANH SÁCH BỘ TRUYỆN ĐỂ ĐIỀN VÀO FILTER
    ══════════════════════════════════════════════════ */
-$seriesList = $db->query("SELECT id, title FROM series ORDER BY title ASC")->fetchAll();
+$seriesList = $db->prepare("SELECT id, title FROM series WHERE mangaka_id = ? ORDER BY title ASC");
+$seriesList->execute([$uid]);
+$seriesList = $seriesList->fetchAll();
 
 /* ══════════════════════════════════════════════════
    2. TRUY VẤN BẢN THẢO (DANH SÁCH CHÍNH VỚI BỘ LỌC)
@@ -39,9 +41,9 @@ $mQuery = "
     JOIN chapters c ON c.id = m.chapter_id
     JOIN series s ON s.id = m.series_id
     JOIN users u ON u.id = m.submitted_by
-    WHERE 1=1
+    WHERE s.mangaka_id = ?
 ";
-$params = [];
+$params = [$uid];
 
 if ($filterSeries > 0) {
     $mQuery .= " AND m.series_id = ?";
@@ -254,63 +256,15 @@ $annotationStatusLabels = [
 <!-- Page Header -->
 <div class="page-header">
     <div class="breadcrumb">
-        <a href="<?= BASE_URL ?>editor/dashboard.php">Dashboard</a>
+        <a href="<?= BASE_URL ?>mangaka/dashboard.php">Dashboard</a>
         <span class="sep">›</span>
-        <span class="current">Bản thảo duyệt</span>
+        <span class="current">Xem ghi chú bản thảo</span>
     </div>
-    <h1>Biên Tập & Kiểm Duyệt Bản Thảo</h1>
-    <p>Kiểm tra nội dung các chương truyện mới gửi lên, thêm ghi chú trực quan và đề xuất phê duyệt xuất bản.</p>
+    <h1>Xem Ghi Chú Bản Thảo</h1>
+    <p>Xem các lỗi cần sửa và ghi chú từ Biên tập viên trên các trang truyện của bạn.</p>
 </div>
 
-<!-- Modal Đệ Trình Ban Biên Tập -->
-<div class="modal-backdrop" id="boardSubmitModal">
-    <div class="modal-box" style="max-width: 480px;">
-        <div class="modal-header">
-            <h3>Đệ trình lên Ban biên tập</h3>
-            <button class="modal-close" onclick="closeBoardModal()">×</button>
-        </div>
-        <div class="modal-body">
-            <input type="hidden" id="boardManuscriptId" value="">
-            <div class="form-group">
-                <label class="form-label">Ý kiến đề xuất/Nhận xét của Biên tập viên *</label>
-                <textarea id="boardSubmitNotes" class="form-control" rows="4" 
-                          placeholder="Ví dụ: Chương truyện này có chất lượng nét vẽ rất tốt, nội dung hấp dẫn, đề nghị duyệt phát hành tuần tới..." required></textarea>
-            </div>
-            <div class="alert alert-info" style="font-size:0.78rem; padding: 10px 14px; border-radius:8px;">
-                📢 Bản thảo sẽ được chuyển sang trạng thái **Đã duyệt** và tạo đệ trình lên Ban biên tập để bỏ phiếu.
-            </div>
-        </div>
-        <div class="modal-footer">
-            <button class="btn btn-secondary" onclick="closeBoardModal()">Hủy</button>
-            <button class="btn btn-primary" onclick="confirmSubmitToBoard()">Xác nhận đệ trình</button>
-        </div>
-    </div>
-</div>
 
-<!-- Modal Từ Chối Bản Thảo -->
-<div class="modal-backdrop" id="rejectManuscriptModal">
-    <div class="modal-box" style="max-width: 480px;">
-        <div class="modal-header">
-            <h3 style="color: var(--red);">Từ chối bản thảo</h3>
-            <button class="modal-close" onclick="closeRejectModal()">×</button>
-        </div>
-        <div class="modal-body">
-            <input type="hidden" id="rejectManuscriptId" value="">
-            <div class="form-group">
-                <label class="form-label">Lý do từ chối *</label>
-                <textarea id="rejectNotes" class="form-control" rows="4" 
-                          placeholder="Ví dụ: Nét vẽ còn ẩu, sai phối cảnh, cần sửa lại trước khi duyệt..." required></textarea>
-            </div>
-            <div class="alert alert-error" style="font-size:0.78rem; padding: 10px 14px; border-radius:8px;">
-                ⚠️ Bản thảo sẽ bị đánh dấu là **Từ chối**. Họa sĩ có thể sửa lại và nộp bản mới hoặc gửi đơn Bảo vệ tác phẩm.
-            </div>
-        </div>
-        <div class="modal-footer">
-            <button class="btn btn-secondary" onclick="closeRejectModal()">Hủy</button>
-            <button class="btn btn-danger" onclick="confirmRejectManuscript()">Xác nhận từ chối</button>
-        </div>
-    </div>
-</div>
 
 <?php if ($manuscriptDetail === null): ?>
     <!-- ══════════════════════════════════════════════════
@@ -374,7 +328,7 @@ $annotationStatusLabels = [
                             <tr style="border-bottom: 1px solid rgba(255,255,255,0.03); transition: background 0.2s;">
                                 <td style="padding:14px 18px;">
                                     <div class="font-bold" style="font-size:0.9rem;"><?= htmlspecialchars($m['series_title']) ?></div>
-                                    <div class="text-xs text-muted">Chương <?= $m['chapter_number'] ?> · <?= htmlspecialchars($m['chapter_title']) ?></div>
+                                    <div class="text-xs text-muted">Chương <?= $pm['chapter_number'] ?? $m['chapter_number'] ?> · <?= htmlspecialchars($m['chapter_title']) ?></div>
                                 </td>
                                 <td style="padding:14px 18px; font-size:0.85rem;">
                                     <?= htmlspecialchars($m['mangaka_name']) ?>
@@ -424,15 +378,38 @@ $annotationStatusLabels = [
                     
                     <div style="display:flex; gap:8px;">
                         <a href="<?= BASE_URL . $manuscriptDetail['file_path'] ?>" download class="btn btn-secondary btn-sm">
-                            📥 Tải file bản thảo (PDF/ZIP)
+                            📥 Tải file bản thảo
                         </a>
-                        <?php if ($manuscriptDetail['status'] !== 'approved' && $manuscriptDetail['status'] !== 'rejected'): ?>
-                            <button onclick="openRejectModal(<?= $manuscriptDetail['id'] ?>)" class="btn btn-danger btn-sm" style="background: rgba(239, 68, 68, 0.1); color: var(--red); border-color: rgba(239, 68, 68, 0.2);">
-                                ✕ Từ chối & Yêu cầu sửa
+                        <?php if ($manuscriptDetail['status'] === 'rejected'): ?>
+                            <button onclick="document.getElementById('defenseModal').classList.add('open')" class="btn btn-primary btn-sm">
+                                🛡️ Gửi giải trình
                             </button>
-                            <button onclick="openBoardSubmitModal(<?= $manuscriptDetail['id'] ?>)" class="btn btn-primary btn-sm">
-                                🚀 Đệ trình lên BBT
-                            </button>
+                            
+                            <!-- Modal Đơn Giải Trình -->
+                            <div class="modal-backdrop" id="defenseModal">
+                                <div class="modal-box" style="max-width: 480px;">
+                                    <div class="modal-header">
+                                        <h3>Bảo vệ tác phẩm</h3>
+                                        <button type="button" class="modal-close" onclick="document.getElementById('defenseModal').classList.remove('open')">×</button>
+                                    </div>
+                                    <form action="<?= BASE_URL ?>mangaka/defense.php" method="POST" style="margin:0">
+                                        <input type="hidden" name="action" value="create_defense">
+                                        <input type="hidden" name="chapter_id" value="<?= $manuscriptDetail['chapter_id'] ?>">
+                                        <input type="hidden" name="manuscript_id" value="<?= $manuscriptDetail['id'] ?>">
+                                        <div class="modal-body">
+                                            <div class="form-group">
+                                                <label class="form-label">Lý do giải trình *</label>
+                                                <textarea name="reason" class="form-control" rows="4" 
+                                                          placeholder="Nhập lý do tại sao bạn cho rằng bản thảo này không nên bị từ chối..." required></textarea>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" onclick="document.getElementById('defenseModal').classList.remove('open')">Hủy</button>
+                                            <button type="submit" class="btn btn-primary">Gửi đơn</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -466,10 +443,7 @@ $annotationStatusLabels = [
                         <div class="canvas-wrapper" id="canvasWrapper">
                             <img id="annotationImage" src="<?= BASE_URL . htmlspecialchars($activePageObj['original_file']) ?>" alt="Trang duyệt">
                             
-                            <div class="canvas-overlay" id="canvasOverlay" 
-                                 onmousedown="startDraw(event)" 
-                                 onmousemove="moveDraw(event)" 
-                                 onmouseup="endDraw(event)">
+                            <div class="canvas-overlay" id="canvasOverlay">
                                 
                                 <!-- Render danh sách Annotations hiện có -->
                                 <?php 
@@ -483,9 +457,6 @@ $annotationStatusLabels = [
                                         <span class="annotation-num"><?= $num++ ?></span>
                                     </div>
                                 <?php endforeach; ?>
-
-                                <!-- Hộp vẽ kéo tạm thời -->
-                                <div class="draw-box" id="drawBox" style="display:none;"></div>
                             </div>
                         </div>
                     <?php else: ?>
@@ -497,27 +468,11 @@ $annotationStatusLabels = [
 
         <!-- RIGHT COLUMN: SIDEBAR DANH SÁCH CHÚ THÍCH -->
         <div class="manuscript-right">
-            <!-- Form Tạo Ghi Chú Mới (Ẩn mặc định, hiển thị sau khi vẽ xong) -->
-            <div class="card mb-24" id="newAnnotationCard" style="display:none;">
-                <div class="card-header" style="padding:0; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
-                    <p class="card-title" style="font-size:0.95rem; font-weight:700; color:#fbbf24;">✍️ Ghi chú mới</p>
-                    <button class="modal-close" style="padding:2px 6px;" onclick="cancelDraw()">✕</button>
-                </div>
-                <div class="form-group" style="margin-bottom:12px;">
-                    <label class="form-label" style="font-size:0.75rem;">Nhập nhận xét / yêu cầu sửa đổi:</label>
-                    <textarea id="annCommentInput" class="form-control" rows="3" placeholder="Nhập ghi chú chi tiết..."></textarea>
-                </div>
-                <div style="display:flex; gap:6px;">
-                    <button class="btn btn-secondary btn-sm" style="flex:1;" onclick="cancelDraw()">Hủy</button>
-                    <button class="btn btn-primary btn-sm" style="flex:1.5;" onclick="saveAnnotation()">Lưu ghi chú</button>
-                </div>
-            </div>
-
             <!-- Thống kê Annotations hiện có -->
             <div class="card">
                 <div class="card-header" style="padding:0; margin-bottom:16px;">
                     <p class="card-title" style="font-size:0.95rem; font-weight:700;">Ghi Chú Đọc Duyệt Trang</p>
-                    <p class="card-subtitle">Kéo thả chuột trên ảnh để khoanh vùng và thêm ghi chú</p>
+                    <p class="card-subtitle">Chi tiết các lỗi và nhận xét từ Biên tập viên</p>
                 </div>
 
                 <?php if (empty($annotations)): ?>
@@ -542,14 +497,7 @@ $annotationStatusLabels = [
                                     <?= htmlspecialchars($ann['comment']) ?>
                                 </p>
                                 
-                                <?php if (!$isResolved): ?>
-                                    <div style="margin-top:10px; text-align:right;">
-                                        <button class="btn btn-ghost btn-sm" style="color:#34d399; font-size:0.75rem; padding: 3px 8px; border:1px solid rgba(16,185,129,.2);"
-                                                onclick="resolveAnnotation(<?= $ann['id'] ?>)">
-                                            ✓ Đã sửa (Resolve)
-                                        </button>
-                                    </div>
-                                <?php endif; ?>
+                                
                             </div>
                         <?php endforeach; ?>
                     </div>
@@ -558,241 +506,6 @@ $annotationStatusLabels = [
         </div>
         
     </div>
-
-    <!-- JS CHỨC NĂNG VẼ ANNOTATIONS -->
-    <script>
-    const manuscriptId = <?= $selectedManuscriptId ?>;
-    const pageId       = <?= $selectedPageId ?>;
-
-    let drawing = false;
-    let startX = 0, startY = 0;
-    let currentCoords = null; // {x, y, w, h} in %
-
-    function startDraw(e) {
-        if (e.button !== 0) return; // Chỉ nhận chuột trái
-        
-        const wrapper = document.getElementById('canvasWrapper');
-        if (!wrapper) return;
-        
-        drawing = true;
-        
-        const rect = wrapper.getBoundingClientRect();
-        startX = ((e.clientX - rect.left) / rect.width) * 100;
-        startY = ((e.clientY - rect.top) / rect.height) * 100;
-        
-        const drawBox = document.getElementById('drawBox');
-        drawBox.style.left = startX + '%';
-        drawBox.style.top = startY + '%';
-        drawBox.style.width = '0%';
-        drawBox.style.height = '0%';
-        drawBox.style.display = 'block';
-    }
-
-    function moveDraw(e) {
-        if (!drawing) return;
-        
-        const wrapper = document.getElementById('canvasWrapper');
-        const rect = wrapper.getBoundingClientRect();
-        
-        const currentX = ((e.clientX - rect.left) / rect.width) * 100;
-        const currentY = ((e.clientY - rect.top) / rect.height) * 100;
-        
-        // Giới hạn trong khoảng [0, 100]
-        const clamp = v => Math.max(0, Math.min(100, v));
-        
-        const x = clamp(Math.min(startX, currentX));
-        const y = clamp(Math.min(startY, currentY));
-        const w = clamp(Math.abs(startX - currentX));
-        const h = clamp(Math.abs(startY - currentY));
-        
-        currentCoords = { x, y, w, h };
-        
-        const drawBox = document.getElementById('drawBox');
-        drawBox.style.left   = x + '%';
-        drawBox.style.top    = y + '%';
-        drawBox.style.width  = w + '%';
-        drawBox.style.height = h + '%';
-    }
-
-    function endDraw(e) {
-        if (!drawing) return;
-        drawing = false;
-        
-        if (!currentCoords || currentCoords.w < 1 || currentCoords.h < 1) {
-            cancelDraw();
-            return;
-        }
-        
-        // Hiển thị form ghi chú mới ở sidebar
-        document.getElementById('newAnnotationCard').style.display = 'block';
-        document.getElementById('annCommentInput').value = '';
-        document.getElementById('annCommentInput').focus();
-    }
-
-    function cancelDraw() {
-        drawing = false;
-        currentCoords = null;
-        document.getElementById('drawBox').style.display = 'none';
-        document.getElementById('newAnnotationCard').style.display = 'none';
-    }
-
-    // Lưu Annotation thông qua AJAX
-    function saveAnnotation() {
-        const comment = document.getElementById('annCommentInput').value.trim();
-        if (!comment) {
-            alert('Vui lòng nhập nội dung nhận xét.');
-            return;
-        }
-
-        if (!currentCoords) return;
-
-        const params = new URLSearchParams();
-        params.append('action', 'create');
-        params.append('manuscript_id', manuscriptId);
-        params.append('page_id', pageId);
-        params.append('x_pos', currentCoords.x.toFixed(2));
-        params.append('y_pos', currentCoords.y.toFixed(2));
-        params.append('width', currentCoords.w.toFixed(2));
-        params.append('height', currentCoords.h.toFixed(2));
-        params.append('comment', comment);
-
-        fetch(BASE_URL + 'api/annotations.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: params.toString()
-        })
-        .then(r => r.json())
-        .then(data => {
-            if (data.success) {
-                // Tải lại trang để cập nhật giao diện trực quan và danh sách
-                window.location.reload();
-            } else {
-                alert('Lỗi: ' + data.message);
-            }
-        })
-        .catch(err => {
-            console.error(err);
-            alert('Lỗi kết nối máy chủ.');
-        });
-    }
-
-    // Giải quyết annotation (Resolve) thông qua AJAX
-    function resolveAnnotation(annId) {
-        if (!confirm('Bạn xác nhận lỗi này đã được trợ lý/họa sĩ sửa xong?')) return;
-
-        const params = new URLSearchParams();
-        params.append('action', 'resolve');
-        params.append('annotation_id', annId);
-
-        fetch(BASE_URL + 'api/annotations.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: params.toString()
-        })
-        .then(r => r.json())
-        .then(data => {
-            if (data.success) {
-                window.location.reload();
-            } else {
-                alert('Lỗi: ' + data.message);
-            }
-        })
-        .catch(err => {
-            console.error(err);
-            alert('Lỗi máy chủ.');
-        });
-    }
-
-    /* Modal Đệ Trình lên Ban Biên Tập */
-    function openBoardSubmitModal(mId) {
-        document.getElementById('boardManuscriptId').value = mId;
-        document.getElementById('boardSubmitNotes').value = '';
-        document.getElementById('boardSubmitModal').classList.add('open');
-    }
-
-    function closeBoardModal() {
-        document.getElementById('boardSubmitModal').classList.remove('open');
-    }
-
-    function confirmSubmitToBoard() {
-        const notes = document.getElementById('boardSubmitNotes').value.trim();
-        const mId   = document.getElementById('boardManuscriptId').value;
-
-        if (!notes) {
-            alert('Vui lòng nhập nhận xét đề xuất gửi lên Ban biên tập.');
-            return;
-        }
-
-        const params = new URLSearchParams();
-        params.append('action', 'submit_to_board');
-        params.append('manuscript_id', mId);
-        params.append('board_notes', notes);
-
-        fetch(BASE_URL + 'api/annotations.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: params.toString()
-        })
-        .then(r => r.json())
-        .then(data => {
-            if (data.success) {
-                alert(data.message);
-                window.location.href = 'manuscripts.php';
-            } else {
-                alert('Lỗi: ' + data.message);
-            }
-        })
-        .catch(err => {
-            console.error(err);
-            alert('Lỗi kết nối máy chủ.');
-        });
-    }
-
-    /* Modal Từ chối bản thảo */
-    function openRejectModal(mId) {
-        document.getElementById('rejectManuscriptId').value = mId;
-        document.getElementById('rejectNotes').value = '';
-        document.getElementById('rejectManuscriptModal').classList.add('open');
-    }
-
-    function closeRejectModal() {
-        document.getElementById('rejectManuscriptModal').classList.remove('open');
-    }
-
-    function confirmRejectManuscript() {
-        const notes = document.getElementById('rejectNotes').value.trim();
-        const mId   = document.getElementById('rejectManuscriptId').value;
-
-        if (!notes) {
-            alert('Vui lòng nhập lý do từ chối để họa sĩ biết cần sửa gì.');
-            return;
-        }
-
-        const params = new URLSearchParams();
-        params.append('action', 'reject_manuscript');
-        params.append('manuscript_id', mId);
-        params.append('reject_notes', notes);
-
-        fetch(BASE_URL + 'api/annotations.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: params.toString()
-        })
-        .then(r => r.json())
-        .then(data => {
-            if (data.success) {
-                alert(data.message);
-                window.location.reload();
-            } else {
-                alert('Lỗi: ' + data.message);
-            }
-        })
-        .catch(err => {
-            console.error(err);
-            alert('Lỗi kết nối máy chủ.');
-        });
-    }
-    </script>
 <?php endif; ?>
 
 <?php
