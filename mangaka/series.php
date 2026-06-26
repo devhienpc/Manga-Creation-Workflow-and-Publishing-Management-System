@@ -429,9 +429,7 @@ function sortUrl(string $field): string {
             <?php foreach ($series as $s):
                 [$stLabel, $stClass, $stIcon] = $statusConfig[$s['status']] ?? ['?', 'badge-gray', '?'];
                 $isSelected = ($detailId === (int)$s['id']);
-                $coverUrl   = $s['cover_image']
-                    ? BASE_URL . 'assets/uploads/' . $s['cover_image']
-                    : null;
+                $coverUrl   = coverImageUrl($s['cover_image']);
             ?>
             <div class="card" style="padding:16px;cursor:pointer;<?= $isSelected ? 'border-color:var(--red);box-shadow:0 0 0 1px var(--red)' : '' ?>"
                  onclick="window.location='?<?= http_build_query(array_merge($_GET, ['detail' => $s['id']])) ?>'">
@@ -494,9 +492,7 @@ function sortUrl(string $field): string {
             <!-- Header with close -->
             <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:20px">
                 <?php
-                $coverUrl = $detailSeries['cover_image']
-                    ? BASE_URL . 'assets/uploads/' . $detailSeries['cover_image']
-                    : null;
+                $coverUrl = coverImageUrl($detailSeries['cover_image']);
                 [$stLabel, $stClass] = $statusConfig[$detailSeries['status']] ?? ['?', 'badge-gray'];
                 ?>
                 <div style="width:70px;height:100px;border-radius:8px;overflow:hidden;flex-shrink:0;background:var(--bg-input);border:1px solid var(--border)">
