@@ -1,11 +1,13 @@
-<?php
-<?php
+	<?php
 /**
  * assistant/tasks.php
  * Quản lý danh sách nhiệm vụ và nộp kết quả của Trợ lý Manga (Assistant).
  */
 
 require_once __DIR__ . '/../config/constants.php';
+require_once __DIR__ . '/../config/db.php'; // Nạp hàm getDB()
+require_once __DIR__ . '/../config/auth.php'; // Nạp hàm getCurrentUser()
+
 
 // 1. KHỞI TẠO KẾT NỐI DB VÀ THÔNG TIN USER TRƯỚC
 $db  = getDB();
@@ -15,6 +17,7 @@ $uid = $currentUser['id'];
 
 $flashMsg = '';
 $flashType = 'success';
+$errorTaskId = 0;
 
 // Nhận flash từ redirect
 if (isset($_GET['flash']) && $_GET['flash'] === 'success') {
@@ -46,18 +49,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     } elseif (!in_array($task['status'], ['pending', 'in_progress', 'revision'])) {
         $flashMsg = 'Nhiệm vụ này đã được nộp hoặc đã được duyệt.';
         $flashType = 'error';
+$errorTaskId = $taskId;
     } elseif (!isset($_FILES['file_result']) || $_FILES['file_result']['error'] === UPLOAD_ERR_NO_FILE) {
         $flashMsg = 'Vui lòng chọn tệp kết quả để nộp.';
         $flashType = 'error';
+$errorTaskId = $taskId;
     } else {
         $file = $_FILES['file_result'];
         
         if ($file['error'] !== UPLOAD_ERR_OK) {
             $flashMsg = 'Lỗi tải lên tệp: code ' . $file['error'];
             $flashType = 'error';
+$errorTaskId = $taskId;
         } elseif ($file['size'] > 52428800) { // 50MB
             $flashMsg = 'Kích thước tệp vượt quá giới hạn 50MB.';
             $flashType = 'error';
+$errorTaskId = $taskId;
         } else {
             // Kiểm tra loại tệp
             $finfo = new finfo(FILEINFO_MIME_TYPE);
@@ -84,7 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 }
             }
             
-            if (!$isMimeValid && !in_array($ext, ['png', 'psd', 'zip'], true)) {
+            if (!$isMimeValid || !in_array($ext, ['png', 'psd', 'zip'], true)) {
                 $flashMsg = "Loại tệp không hợp lệ ($mime). Chỉ cho phép tệp PNG, PSD, ZIP.";
                 $flashType = 'error';
             } else {
@@ -101,21 +108,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 }
                 
                 if (move_uploaded_file($file['tmp_name'], $destPath)) {
-                    // Cập nhật Database
-                    $update = $db->prepare("UPDATE tasks SET file_result = ?, status = 'submitted' WHERE id = ?");
-                    $update->execute(['tasks/' . $filename, $taskId]);
-                    
-                    // Gửi thông báo cho Họa sĩ (Mangaka)
-                    $assistantName = $currentUser['username'];
-                    $notifMsg = "Trợ lý $assistantName đã NỘP kết quả cho nhiệm vụ ({$task['task_type']}) trên Trang {$task['page_number']}.";
-                    $link = "mangaka/tasks.php?chapter_id={$task['chapter_id']}&page_id={$task['page_id']}";
-                    
-                    $notif = $db->prepare("INSERT INTO notifications (user_id, type, message, link) VALUES (?, 'task_submitted', ?, ?)");
-                    $notif->execute([$task['assigned_by'], $notifMsg, $link]);
-                    
-                    // Chuyển hướng bây giờ sẽ hoạt động bình thường!
-                    header('Location: ' . BASE_URL . 'assistant/tasks.php?flash=success');
-                    exit();
+// Kiểm tra xem task này đã có file kết quả cũ chưa (trường hợp revision)
+                    if (!empty($task['file_result'])) {
+                        // Tạo đường dẫn vật lý tuyệt đối tới file cũ trên server
+                        $oldFilePath = UPLOAD_PATH . $task['file_result'];
+                        
+                        // Nếu file thực sự tồn tại trên ổ cứng thì xóa nó đi
+                        if (file_exists($oldFilePath)) {
+                            unlink($oldFilePath);
+                        }
+                    }
+                    try {
+                        // Bật Transaction
+                        $db->beginTransaction();
+
+                        // 1. Cập nhật Database
+                        $update = $db->prepare("UPDATE tasks SET file_result = ?, status = 'submitted' WHERE id = ?");
+                        $update->execute(['tasks/' . $filename, $taskId]);
+                        
+                        // 2. Gửi thông báo cho Họa sĩ (Mangaka)
+                        $assistantName = $currentUser['username'];
+                        $notifMsg = "Trợ lý $assistantName đã NỘP kết quả cho nhiệm vụ ({$task['task_type']}) trên Trang {$task['page_number']}.";
+                        $link = "mangaka/tasks.php?chapter_id={$task['chapter_id']}&page_id={$task['page_id']}";
+                        
+                        $notif = $db->prepare("INSERT INTO notifications (user_id, type, message, link) VALUES (?, 'task_submitted', ?, ?)");
+                        $notif->execute([$task['assigned_by'], $notifMsg, $link]);
+                        
+                        // Nếu cả 2 lệnh trên đều không sinh lỗi, thì mới Commit (lưu thật vào DB)
+                        $db->commit();
+
+                        header('Location: ' . BASE_URL . 'assistant/tasks.php?flash=success');
+                        exit();
+
+                    } catch (Exception $e) {
+                        // Nếu có lỗi ở bất kỳ lệnh nào, Rollback (quay ngược) lại trạng thái ban đầu
+                        $db->rollBack();
+                        
+                        // Tùy chọn: Xóa luôn file vừa upload thành công ở trên nếu DB lỗi để tránh rác
+                        if (file_exists($destPath)) {
+                            unlink($destPath);
+                        }
+
+                        $flashMsg = 'Lỗi hệ thống khi lưu kết quả (Database Error).';
+                        $flashType = 'error';
+                    }
+                   
+
                 } else {
                     $flashMsg = 'Không thể lưu tệp kết quả tải lên.';
                     $flashType = 'error';
@@ -509,17 +547,21 @@ $taskStatusLabels = [
 <script>
 /* Dữ liệu Tasks dạng JS object truyền từ PHP */
 const TASKS_DATA = <?= $jsTasksData ?>;
+// Nhận ID task bị lỗi từ PHP truyền xuống (nếu không có lỗi thì mặc định là 0)
+const errorTaskId = <?= isset($errorTaskId) ? (int)$errorTaskId : 0 ?>; 
 
 // Lấy tham số task_id để tự động mở modal nếu đi từ dashboard
 const urlParams = new URLSearchParams(window.location.search);
 const autoOpenTaskId = parseInt(urlParams.get('task_id') || '0');
 
 document.addEventListener('DOMContentLoaded', function() {
-    if (autoOpenTaskId > 0 && TASKS_DATA[autoOpenTaskId]) {
-        openTaskModal(autoOpenTaskId);
+    // Ưu tiên mở modal của task bị lỗi upload trước, nếu không có lỗi thì mới mở theo URL
+    const targetTaskId = errorTaskId > 0 ? errorTaskId : autoOpenTaskId;
+    
+    if (targetTaskId > 0 && TASKS_DATA[targetTaskId]) {
+        openTaskModal(targetTaskId);
     }
 });
-
 function openTaskModal(taskId) {
     const task = TASKS_DATA[taskId];
     if (!task) return;
