@@ -34,7 +34,8 @@ $selectedChapterId = (int)($_GET['chapter_id'] ?? 0);
 $selectedPageId    = (int)($_GET['page_id']    ?? 0);
 
 // Pages of selected chapter
-$pages = [];
+$pages    = [];
+$seriesId = 0;
 if ($selectedChapterId) {
     $stmt = $db->prepare(
         "SELECT id, page_number, original_file, composite_file, status
@@ -42,6 +43,12 @@ if ($selectedChapterId) {
     );
     $stmt->execute([$selectedChapterId]);
     $pages = $stmt->fetchAll();
+
+    // Get series_id for the selected chapter
+    $chStmt = $db->prepare("SELECT series_id FROM chapters WHERE id = ? LIMIT 1");
+    $chStmt->execute([$selectedChapterId]);
+    $chRow = $chStmt->fetch();
+    $seriesId = $chRow ? (int)$chRow['series_id'] : 0;
 }
 
 // Tasks list: filtered by chapter + optional status
@@ -244,6 +251,53 @@ $pageStatusLabels = [
     cursor:pointer; transition: transform .15s;
 }
 .result-thumb:hover { transform:scale(1.1); }
+.result-file-badge {
+    display:inline-flex; align-items:center; gap:4px;
+    padding:4px 8px; border-radius:6px; font-size:.7rem; font-weight:700;
+    border:1px solid var(--border); cursor:pointer;
+    transition: background .15s, border-color .15s;
+}
+.result-file-badge:hover { border-color:rgba(230,57,70,.5); background:rgba(230,57,70,.08); }
+.result-file-badge.pdf  { color:#e53935; }
+.result-file-badge.zip  { color:#7c3aed; }
+.result-file-badge.img  { color:#10b981; }
+
+/* Page upload overlay */
+.page-thumb-upload {
+    position: absolute; inset:0; z-index:3;
+    background: rgba(0,0,0,.55); backdrop-filter:blur(2px);
+    display:flex; align-items:center; justify-content:center;
+    opacity:0; transition: opacity .2s;
+    border-radius:6px;
+    cursor: pointer;
+    flex-direction: column;
+    gap: 4px;
+}
+.page-thumb:hover .page-thumb-upload { opacity:1; }
+.page-thumb-upload span { font-size:.6rem; color:#fff; font-weight:700; }
+
+/* PDF badge on thumbnail */
+.page-thumb-pdf {
+    position:absolute; inset:0;
+    display:flex; align-items:center; justify-content:center;
+    flex-direction:column; gap:4px;
+    font-size:2rem;
+}
+.page-thumb-pdf small { font-size:.6rem; color:var(--text-muted); font-weight:700; }
+
+/* Upload progress bar */
+.upload-progress {
+    position:absolute; bottom:0; left:0; right:0; height:3px;
+    background: rgba(255,255,255,.15);
+    border-radius:0 0 6px 6px;
+    overflow:hidden;
+    display:none;
+}
+.upload-progress-bar {
+    height:100%; width:0;
+    background: linear-gradient(90deg,#E63946,#ff6b6b);
+    transition: width .2s;
+}
 
 /* Filter bar */
 .filter-bar {
@@ -301,7 +355,6 @@ $pageStatusLabels = [
     position:fixed;inset:0;z-index:9999;
     background:rgba(0,0,0,.9);backdrop-filter:blur(8px);
     display:none;align-items:center;justify-content:center;
-    cursor:zoom-out;
 }
 #lightbox.open { display:flex; }
 #lightbox img { max-width:90vw; max-height:90vh; border-radius:8px; }
@@ -334,10 +387,19 @@ $pageStatusLabels = [
 <!-- Toast container -->
 <div class="mf-toast-wrap" id="toastWrap"></div>
 
-<!-- Lightbox -->
-<div id="lightbox" onclick="this.classList.remove('open')">
-    <img id="lightboxImg" src="" alt="Kết quả">
+<!-- Lightbox (image + PDF) -->
+<div id="lightbox" onclick="if(event.target===this)this.classList.remove('open')">
+    <button id="lbMkPrev" onclick="_lbNav(-1)" style="position:absolute;left:16px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.15);color:#fff;font-size:1.3rem;width:42px;height:42px;border-radius:50%;cursor:pointer;display:none;align-items:center;justify-content:center;">&#8249;</button>
+    <img id="lightboxImg" src="" alt="Kết quả" style="max-width:90vw;max-height:90vh;border-radius:8px;display:none;">
+    <iframe id="lightboxPdf" src="" style="width:90vw;height:90vh;border:none;border-radius:8px;background:#fff;display:none;"></iframe>
+    <button id="lbMkNext" onclick="_lbNav(1)" style="position:absolute;right:16px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.15);color:#fff;font-size:1.3rem;width:42px;height:42px;border-radius:50%;cursor:pointer;display:none;align-items:center;justify-content:center;">&#8250;</button>
+    <button onclick="document.getElementById('lightbox').classList.remove('open');"
+            style="position:absolute;top:16px;right:20px;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.2);color:#fff;font-size:1.1rem;width:36px;height:36px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
 </div>
+
+<!-- Hidden file input for page upload -->
+<input type="file" id="pageFileInput" accept="image/jpeg,image/png,image/webp,application/pdf,.jpg,.jpeg,.png,.webp,.pdf"
+       style="display:none;" onchange="handlePageFileSelect(this)">
 
 <?php
 // Encode data for JS
@@ -348,12 +410,13 @@ $jsPages = json_encode(array_map(fn($p) => [
     'composite'  => !empty($p['composite_file']) ? BASE_URL . $p['composite_file'] : null,
     'status'     => $p['status'],
 ], $pages));
+$jsSeriesId = $seriesId;
 
 // Tasks per page (for overlay rendering) - only for selected chapter
 $pageTasks = [];
 if ($selectedChapterId) {
     $stmt2 = $db->prepare(
-        "SELECT t.id, t.task_type, t.region_data, t.status, t.description,
+        "SELECT t.id, t.page_id, t.task_type, t.region_data, t.status, t.description,
                 u.username AS assistant_name
          FROM tasks t
          JOIN pages p ON p.id = t.page_id
@@ -441,8 +504,18 @@ $jsTaskTypeColors = json_encode([
                  id="thumb-<?= $pg['id'] ?>"
                  onclick="selectPage(<?= $pg['id'] ?>)"
                  title="Trang <?= $pg['page_number'] ?>">
-                <?php if (!empty($pg['original_file'])): ?>
-                <img src="<?= htmlspecialchars(BASE_URL . $pg['original_file']) ?>" alt="Trang <?= $pg['page_number'] ?>" loading="lazy">
+                <?php
+                $isPdf = !empty($pg['original_file']) && strtolower(pathinfo($pg['original_file'], PATHINFO_EXTENSION)) === 'pdf';
+                ?>
+                <?php if (!empty($pg['original_file']) && !$isPdf): ?>
+                <img src="<?= htmlspecialchars(BASE_URL . $pg['original_file']) ?>" alt="Trang <?= $pg['page_number'] ?>" loading="lazy"
+                     onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+                <div style="display:none;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:1.5rem;">📃</div>
+                <?php elseif ($isPdf): ?>
+                <div class="page-thumb-pdf">
+                    📄
+                    <small>PDF</small>
+                </div>
                 <?php else: ?>
                 <div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:1.5rem;">📃</div>
                 <?php endif; ?>
@@ -451,6 +524,14 @@ $jsTaskTypeColors = json_encode([
                 <span class="page-thumb-taskcount"><?= $taskCnt ?></span>
                 <?php endif; ?>
                 <div class="page-thumb-label">Trang <?= $pg['page_number'] ?></div>
+                <!-- Upload overlay -->
+                <div class="page-thumb-upload" onclick="event.stopPropagation();triggerPageUpload(<?= $pg['id'] ?>, <?= $pg['page_number'] ?>)" title="Tải ảnh lên">
+                    <svg width="18" height="18" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+                    <span>Tải ảnh</span>
+                </div>
+                <div class="upload-progress" id="prog-<?= $pg['id'] ?>">
+                    <div class="upload-progress-bar" id="progbar-<?= $pg['id'] ?>"></div>
+                </div>
             </div>
             <?php endforeach; ?>
         </div>
@@ -473,7 +554,18 @@ $jsTaskTypeColors = json_encode([
         </div>
 
         <div class="canvas-wrapper" id="canvasWrapper">
-            <img id="pageImage" src="" alt="Trang truyện">
+            <!-- Image page -->
+            <img id="pageImage" src="" alt="Trang truyện" style="display:none;">
+            <!-- PDF page -->
+            <embed id="pagePdf" src="" type="application/pdf"
+                   style="display:none;width:100%;height:70vh;border:none;" />
+            <!-- No file placeholder -->
+            <div id="pageEmpty" style="display:flex;align-items:center;justify-content:center;min-height:220px;flex-direction:column;gap:12px;color:var(--text-muted);">
+                <div style="font-size:3rem;">📄</div>
+                <p style="font-size:.85rem;text-align:center;">Trang chưa có ảnh.<br>
+                    <a href="#" onclick="event.preventDefault();triggerPageUploadCurrent()" style="color:var(--red);">📤 Tải ảnh/PDF lên ngay</a>
+                </p>
+            </div>
             <div class="canvas-overlay" id="canvasOverlay"
                  onmousedown="startDraw(event)"
                  onmousemove="moveDraw(event)"
@@ -596,14 +688,45 @@ $jsTaskTypeColors = json_encode([
                         </td>
                         <!-- Status -->
                         <td><span class="badge <?= $stClass ?>"><?= $stLabel ?></span></td>
-                        <!-- Result file -->
+                        <!-- Result file (ảnh đơn hoặc JSON array nhiều ảnh) -->
                         <td>
                             <?php if ($task['file_result']): ?>
+                            <?php
+                            // Phân tích file_result: JSON array hoặc path đơn
+                            $raw = $task['file_result'];
+                            $resFiles = [];
+                            $decoded = json_decode($raw, true);
+                            if (is_array($decoded)) {
+                                // Nhiều ảnh — JSON array
+                                foreach ($decoded as $p) {
+                                    $resFiles[] = BASE_URL . 'assets/uploads/' . $p;
+                                }
+                            } else {
+                                // File đơn (backward compat)
+                                $resFiles[] = BASE_URL . $raw;
+                            }
+                            $firstUrl = htmlspecialchars($resFiles[0]);
+                            $allUrlsJson = htmlspecialchars(json_encode($resFiles));
+                            $count = count($resFiles);
+                            ?>
+                            <?php if ($count === 1): ?>
                             <img class="result-thumb"
-                                 src="<?= htmlspecialchars(BASE_URL . $task['file_result']) ?>"
+                                 src="<?= $firstUrl ?>"
                                  alt="Kết quả"
-                                 onclick="openLightbox('<?= htmlspecialchars(BASE_URL . $task['file_result']) ?>')"
-                                 title="Click để xem">
+                                 onclick="openLightbox([<?= $firstUrl ?>], 0)"
+                                 title="Click để xem"
+                                 onerror="this.style.display='none'">
+                            <?php else: ?>
+                            <div style="display:flex;gap:4px;align-items:center;cursor:pointer;"
+                                 onclick="openLightboxArr(<?= $allUrlsJson ?>, 0)"
+                                 title="Click để xem <?= $count ?> ảnh">
+                                <img class="result-thumb"
+                                     src="<?= $firstUrl ?>"
+                                     alt="Kết quả"
+                                     onerror="this.style.display='none'">
+                                <span style="font-size:.7rem;font-weight:700;color:var(--text-muted);white-space:nowrap;">+<?= $count - 1 ?></span>
+                            </div>
+                            <?php endif; ?>
                             <?php else: ?>
                             <span class="text-muted" style="font-size:.8rem;">Chưa có</span>
                             <?php endif; ?>
@@ -763,6 +886,7 @@ const PAGE_TASKS = <?= $jsPageTasks ?>;
 const TYPE_COLORS= <?= $jsTaskTypeColors ?>;
 const BASE       = <?= json_encode(BASE_URL) ?>;
 const CHAPTER_ID = <?= $selectedChapterId ?: 0 ?>;
+const SERIES_ID  = <?= $jsSeriesId ?? 0 ?>;
 
 /* ── State ── */
 let selectedPageId = <?= $selectedPageId ?: 0 ?>;
@@ -786,14 +910,31 @@ function selectPage(pid) {
     document.getElementById('formPageLabel').textContent = 'Trang ' + pg.num;
     document.getElementById('fieldPageId').value = pid;
 
-    // Set image
-    const img = document.getElementById('pageImage');
+    // Set image / PDF in canvas
+    const img    = document.getElementById('pageImage');
+    const pdf    = document.getElementById('pagePdf');
+    const empty  = document.getElementById('pageEmpty');
+    const overlay= document.getElementById('canvasOverlay');
+
+    img.style.display   = 'none';
+    pdf.style.display   = 'none';
+    empty.style.display = 'none';
+
     if (pg.file) {
-        img.src = pg.file;
-        img.style.display = 'block';
+        const ext = pg.file.split('.').pop().toLowerCase();
+        if (ext === 'pdf') {
+            pdf.src = pg.file;
+            pdf.style.display = 'block';
+            // PDF - keep overlay on top for region drawing
+            overlay.style.pointerEvents = 'all';
+        } else {
+            img.src = pg.file;
+            img.style.display = 'block';
+            overlay.style.pointerEvents = 'all';
+        }
     } else {
-        img.src = '';
-        img.style.display = 'none';
+        empty.style.display = 'flex';
+        overlay.style.pointerEvents = 'none';
     }
 
     // Render existing region boxes
@@ -1009,10 +1150,148 @@ async function confirmReview() {
     }
 }
 
-/* ── Lightbox ── */
-function openLightbox(src) {
-    document.getElementById('lightboxImg').src = src;
-    document.getElementById('lightbox').classList.add('open');
+/* ── Lightbox (image + PDF + gallery) ── */
+let _lbUrls = [], _lbIdx = 0;
+
+function openLightboxArr(urls, idx) {
+    _lbUrls = Array.isArray(urls) ? urls : [urls];
+    _lbIdx  = idx || 0;
+    _lbShow();
+}
+
+function openLightbox(src, type) {
+    // Backward compat: src có thể là array hoặc string
+    if (Array.isArray(src)) {
+        openLightboxArr(src, type || 0);
+        return;
+    }
+    _lbUrls = [src];
+    _lbIdx  = 0;
+    _lbShow();
+}
+
+function _lbShow() {
+    const lb  = document.getElementById('lightbox');
+    const img = document.getElementById('lightboxImg');
+    const pdf = document.getElementById('lightboxPdf');
+    const prev = document.getElementById('lbMkPrev');
+    const next = document.getElementById('lbMkNext');
+    img.style.display = 'none'; img.src = '';
+    pdf.style.display = 'none'; pdf.src = '';
+
+    const src = _lbUrls[_lbIdx] || '';
+    const ext = src.split('.').pop().toLowerCase();
+    if (ext === 'pdf') {
+        pdf.src = src; pdf.style.display = 'block';
+    } else {
+        img.src = src; img.style.display = 'block';
+    }
+
+    const multi = _lbUrls.length > 1;
+    if (prev) prev.style.display = multi ? 'flex' : 'none';
+    if (next) next.style.display = multi ? 'flex' : 'none';
+    lb.classList.add('open');
+}
+
+function _lbNav(dir) {
+    _lbIdx = (_lbIdx + dir + _lbUrls.length) % _lbUrls.length;
+    _lbShow();
+}
+
+/* ── Page Upload ── */
+let _uploadPageId = null;
+
+function triggerPageUpload(pageId, pageNum) {
+    _uploadPageId = pageId;
+    const inp = document.getElementById('pageFileInput');
+    inp.title = 'Tải ảnh cho Trang ' + pageNum;
+    inp.click();
+}
+
+function triggerPageUploadCurrent() {
+    if (!selectedPageId) { showToast('Chọn trang trước!', 'error'); return; }
+    const pg = PAGES.find(p => p.id == selectedPageId);
+    triggerPageUpload(selectedPageId, pg ? pg.num : selectedPageId);
+}
+
+function handlePageFileSelect(input) {
+    if (!input.files || !input.files[0]) return;
+    const file = input.files[0];
+    uploadPageFile(_uploadPageId, file);
+    input.value = ''; // reset
+}
+
+async function uploadPageFile(pageId, file) {
+    const MAX_SIZE = 20 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+        showToast('File quá lớn! Tối đa 20MB.', 'error'); return;
+    }
+
+    // Show progress bar
+    const prog    = document.getElementById('prog-' + pageId);
+    const progBar = document.getElementById('progbar-' + pageId);
+    if (prog) { prog.style.display = 'block'; progBar.style.width = '10%'; }
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_type', 'page');
+    formData.append('page_id', pageId);
+    // series_id and chapter_id from JS constants
+    formData.append('series_id',  SERIES_ID);
+    formData.append('chapter_id', CHAPTER_ID);
+    try {
+        if (progBar) progBar.style.width = '40%';
+        const res  = await fetch(BASE + 'api/upload.php', { method: 'POST', body: formData });
+        if (progBar) progBar.style.width = '80%';
+        const json = await res.json();
+
+        if (json.success) {
+            if (progBar) progBar.style.width = '100%';
+            showToast('Tải ảnh thành công!', 'success');
+
+            // Update PAGES data in memory
+            const pg = PAGES.find(p => p.id == pageId);
+            if (pg) pg.file = json.data.url;
+
+            // Update thumbnail
+            updateThumbUI(pageId, json.data.url, json.data.mime);
+
+            // If this is the currently selected page, refresh canvas
+            if (selectedPageId == pageId) selectPage(pageId);
+
+        } else {
+            showToast(json.message || 'Lỗi upload!', 'error');
+        }
+    } catch(err) {
+        showToast('Lỗi kết nối: ' + err.message, 'error');
+    } finally {
+        setTimeout(() => {
+            if (prog) { prog.style.display = 'none'; if(progBar) progBar.style.width='0'; }
+        }, 800);
+    }
+}
+
+function updateThumbUI(pageId, url, mime) {
+    const thumb = document.getElementById('thumb-' + pageId);
+    if (!thumb) return;
+    // Remove old content (img / placeholder div / pdf div) - keep overlay/status/label/progress
+    const toRemove = thumb.querySelectorAll('img, .page-thumb-pdf, [style*="align-items"]');
+    toRemove.forEach(el => el.remove());
+    // Insert new element at the start
+    if (mime === 'application/pdf') {
+        const div = document.createElement('div');
+        div.className = 'page-thumb-pdf';
+        div.innerHTML = '📄<small>PDF</small>';
+        thumb.insertBefore(div, thumb.firstChild);
+    } else {
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = 'Trang';
+        img.loading = 'lazy';
+        img.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;';
+        img.onerror = () => { img.style.display='none'; };
+        thumb.insertBefore(img, thumb.firstChild);
+    }
 }
 
 /* ── Toast ── */

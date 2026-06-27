@@ -62,16 +62,16 @@ const UPLOAD_CONFIG = [
     ],
     'page' => [
         'dir'           => 'assets/uploads/pages/',
-        'allowed_types' => ['image/jpeg', 'image/png', 'image/webp'],
-        'allowed_exts'  => ['jpg', 'jpeg', 'png', 'webp'],
-        'max_size'      => 15 * 1024 * 1024,  // 15 MB
-        'max_size_label'=> '15MB',
+        'allowed_types' => ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'],
+        'allowed_exts'  => ['jpg', 'jpeg', 'png', 'webp', 'pdf'],
+        'max_size'      => 20 * 1024 * 1024,  // 20 MB
+        'max_size_label'=> '20MB',
     ],
     'task_result' => [
         'dir'           => 'assets/uploads/tasks/',
-        'allowed_types' => ['image/jpeg', 'image/png', 'image/webp', 'application/zip'],
-        'allowed_exts'  => ['jpg', 'jpeg', 'png', 'webp', 'zip'],
-        'max_size'      => 20 * 1024 * 1024,  // 20 MB
+        'allowed_types' => ['image/jpeg', 'image/png', 'image/webp'],
+        'allowed_exts'  => ['jpg', 'jpeg', 'png', 'webp'],
+        'max_size'      => 20 * 1024 * 1024,  // 20 MB mỗi ảnh
         'max_size_label'=> '20MB',
     ],
 ];
@@ -222,6 +222,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // ── Tạo URL public ──
     $publicUrl = rtrim(BASE_URL, '/') . '/' . ltrim($relativePath, '/');
 
+    // ── Nếu upload_type=page và page_id được cung cấp → cập nhật pages.original_file ──
+    $pageId = (int)($_POST['page_id'] ?? 0);
+    if ($uploadType === 'page' && $pageId > 0) {
+        // Xác minh page thuộc chapter/series của người dùng hiện tại
+        $verifyStmt = $db->prepare(
+            "SELECT p.id FROM pages p
+             JOIN chapters c ON c.id = p.chapter_id
+             JOIN series   s ON s.id = c.series_id
+             WHERE p.id = ? AND (
+                 s.mangaka_id = ?
+                 OR EXISTS (
+                     SELECT 1 FROM tasks t
+                     WHERE t.page_id = p.id AND t.assigned_to = ?
+                 )
+             ) LIMIT 1"
+        );
+        $verifyStmt->execute([$pageId, $currentUser['id'], $currentUser['id']]);
+        if ($verifyStmt->fetch()) {
+            $db->prepare("UPDATE pages SET original_file = ? WHERE id = ?")
+               ->execute([$relativePath, $pageId]);
+        }
+    }
+
     uploadOut(true, [
         'path'        => $relativePath,
         'url'         => $publicUrl,
@@ -230,6 +253,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'size'        => $file['size'],
         'mime'        => $mimeType,
         'upload_type' => $uploadType,
+        'page_id'     => $pageId ?: null,
     ], 'Upload thành công!');
 }
 

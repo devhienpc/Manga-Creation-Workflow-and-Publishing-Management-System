@@ -26,142 +26,9 @@ if (isset($_GET['flash']) && $_GET['flash'] === 'success') {
 }
 
 /* ══════════════════════════════════════════════════
-   2. XỬ LÝ SUBMIT FILE KẾT QUẢ (POST) - ĐẶT TRƯỚC LAYOUT
+   XỬ LÝ SUBMIT KẾT QUẢ — Upload nhiều ảnh qua AJAX
+   Không cần POST handler server-side vì upload qua api/upload.php
    ══════════════════════════════════════════════════ */
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'submit_task_result') {
-    $taskId = (int)($_POST['task_id'] ?? 0);
-    
-    // Kiểm tra task hợp lệ và thuộc về trợ lý này
-    $stmt = $db->prepare(
-        "SELECT t.*, p.page_number, p.chapter_id, p.id AS page_id, s.mangaka_id 
-         FROM tasks t 
-         JOIN pages p ON p.id = t.page_id 
-         JOIN chapters c ON c.id = p.chapter_id 
-         JOIN series s ON s.id = c.series_id 
-         WHERE t.id = ? AND t.assigned_to = ?"
-    );
-    $stmt->execute([$taskId, $uid]);
-    $task = $stmt->fetch();
-    
-    if (!$task) {
-        $flashMsg = 'Nhiệm vụ không tồn tại hoặc bạn không có quyền nộp.';
-        $flashType = 'error';
-    } elseif (!in_array($task['status'], ['pending', 'in_progress', 'revision'])) {
-        $flashMsg = 'Nhiệm vụ này đã được nộp hoặc đã được duyệt.';
-        $flashType = 'error';
-$errorTaskId = $taskId;
-    } elseif (!isset($_FILES['file_result']) || $_FILES['file_result']['error'] === UPLOAD_ERR_NO_FILE) {
-        $flashMsg = 'Vui lòng chọn tệp kết quả để nộp.';
-        $flashType = 'error';
-$errorTaskId = $taskId;
-    } else {
-        $file = $_FILES['file_result'];
-        
-        if ($file['error'] !== UPLOAD_ERR_OK) {
-            $flashMsg = 'Lỗi tải lên tệp: code ' . $file['error'];
-            $flashType = 'error';
-$errorTaskId = $taskId;
-        } elseif ($file['size'] > 52428800) { // 50MB
-            $flashMsg = 'Kích thước tệp vượt quá giới hạn 50MB.';
-            $flashType = 'error';
-$errorTaskId = $taskId;
-        } else {
-            // Kiểm tra loại tệp
-            $finfo = new finfo(FILEINFO_MIME_TYPE);
-            $mime = $finfo->file($file['tmp_name']);
-            
-            $allowedMimes = [
-                'image/png' => 'png',
-                'application/zip' => 'zip',
-                'application/x-zip-compressed' => 'zip',
-                'image/vnd.adobe.photoshop' => 'psd',
-                'image/photoshop' => 'psd',
-                'application/photoshop' => 'psd',
-                'application/x-photoshop' => 'psd',
-                'application/octet-stream' => 'psd',
-            ];
-            
-            $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-            $isMimeValid = false;
-            
-            if (isset($allowedMimes[$mime])) {
-                $isMimeValid = true;
-                if ($mime === 'application/octet-stream' && $ext !== 'psd') {
-                    $isMimeValid = false;
-                }
-            }
-            
-            if (!$isMimeValid || !in_array($ext, ['png', 'psd', 'zip'], true)) {
-                $flashMsg = "Loại tệp không hợp lệ ($mime). Chỉ cho phép tệp PNG, PSD, ZIP.";
-                $flashType = 'error';
-            } else {
-                if (!in_array($ext, ['png', 'psd', 'zip'], true)) {
-                    $ext = $allowedMimes[$mime];
-                }
-                
-                $filename = 'task_' . $taskId . '_' . bin2hex(random_bytes(8)) . '.' . $ext;
-                $destDir  = UPLOAD_PATH . 'tasks';
-                $destPath = $destDir . '/' . $filename;
-                
-                if (!is_dir($destDir)) {
-                    mkdir($destDir, 0755, true);
-                }
-                
-                if (move_uploaded_file($file['tmp_name'], $destPath)) {
-// Kiểm tra xem task này đã có file kết quả cũ chưa (trường hợp revision)
-                    if (!empty($task['file_result'])) {
-                        // Tạo đường dẫn vật lý tuyệt đối tới file cũ trên server
-                        $oldFilePath = UPLOAD_PATH . $task['file_result'];
-                        
-                        // Nếu file thực sự tồn tại trên ổ cứng thì xóa nó đi
-                        if (file_exists($oldFilePath)) {
-                            unlink($oldFilePath);
-                        }
-                    }
-                    try {
-                        // Bật Transaction
-                        $db->beginTransaction();
-
-                        // 1. Cập nhật Database
-                        $update = $db->prepare("UPDATE tasks SET file_result = ?, status = 'submitted' WHERE id = ?");
-                        $update->execute(['tasks/' . $filename, $taskId]);
-                        
-                        // 2. Gửi thông báo cho Họa sĩ (Mangaka)
-                        $assistantName = $currentUser['username'];
-                        $notifMsg = "Trợ lý $assistantName đã NỘP kết quả cho nhiệm vụ ({$task['task_type']}) trên Trang {$task['page_number']}.";
-                        $link = "mangaka/tasks.php?chapter_id={$task['chapter_id']}&page_id={$task['page_id']}";
-                        
-                        $notif = $db->prepare("INSERT INTO notifications (user_id, type, message, link) VALUES (?, 'task_submitted', ?, ?)");
-                        $notif->execute([$task['assigned_by'], $notifMsg, $link]);
-                        
-                        // Nếu cả 2 lệnh trên đều không sinh lỗi, thì mới Commit (lưu thật vào DB)
-                        $db->commit();
-
-                        header('Location: ' . BASE_URL . 'assistant/tasks.php?flash=success');
-                        exit();
-
-                    } catch (Exception $e) {
-                        // Nếu có lỗi ở bất kỳ lệnh nào, Rollback (quay ngược) lại trạng thái ban đầu
-                        $db->rollBack();
-                        
-                        // Tùy chọn: Xóa luôn file vừa upload thành công ở trên nếu DB lỗi để tránh rác
-                        if (file_exists($destPath)) {
-                            unlink($destPath);
-                        }
-
-                        $flashMsg = 'Lỗi hệ thống khi lưu kết quả (Database Error).';
-                        $flashType = 'error';
-                    }
-                   
-
-                } else {
-                    $flashMsg = 'Không thể lưu tệp kết quả tải lên.';
-                    $flashType = 'error';
-                }
-            }
-        }
-    }
-}
 
 // 3. SAU KHI XỬ LÝ XONG LOGIC TRÊN, MỚI GỌI LAYOUT ĐỂ XUẤT HTML RA MÀN HÌNH
 $pageTitle    = 'Nhiệm vụ của tôi';
@@ -247,6 +114,7 @@ foreach ($taskList as $task) {
         'description'    => $task['description'],
         'region_data'    => json_decode($task['region_data'] ?? '{}', true),
         'due_date'       => $task['due_date'],
+        'file_result_raw'=> $task['file_result'], // raw value from DB
         'file_result'    => $task['file_result'] ? BASE_URL . 'assets/uploads/' . $task['file_result'] : null,
         'original_file'  => $task['original_file'] ? BASE_URL . $task['original_file'] : null,
         'page_number'    => $task['page_number'],
@@ -339,6 +207,99 @@ $taskStatusLabels = [
     box-shadow: 0 0 10px rgba(230, 57, 70, 0.4);
     pointer-events: none;
 }
+
+/* ── Multi-image upload styles ── */
+.img-upload-drop {
+    border: 2px dashed var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .2s, background .2s;
+    background: var(--bg-input);
+    position: relative;
+}
+.img-upload-drop:hover, .img-upload-drop.drag-over {
+    border-color: var(--red);
+    background: rgba(230,57,70,.06);
+}
+.img-upload-drop input[type=file] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+}
+.img-preview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+    gap: 8px;
+    margin-top: 12px;
+}
+.img-preview-item {
+    position: relative;
+    aspect-ratio: 1;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    background: var(--bg-input);
+}
+.img-preview-item img {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+}
+.img-preview-item .remove-btn {
+    position: absolute; top: 3px; right: 3px;
+    background: rgba(0,0,0,.7); color: #fff;
+    border: none; border-radius: 50%; width: 20px; height: 20px;
+    font-size: .7rem; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: background .15s;
+}
+.img-preview-item .remove-btn:hover { background: var(--red); }
+.img-preview-item .upload-overlay {
+    position: absolute; inset: 0; background: rgba(0,0,0,.55);
+    display: flex; align-items: center; justify-content: center;
+    font-size: .65rem; color: #fff; font-weight: 700;
+}
+.upload-status-bar {
+    margin-top: 10px; font-size: .78rem; font-weight: 600; color: var(--text-muted);
+}
+/* Submitted gallery */
+.result-gallery {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+    gap: 8px;
+    margin-top: 10px;
+}
+.result-gallery-item {
+    aspect-ratio: 1;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: transform .15s, border-color .15s;
+}
+.result-gallery-item:hover { transform: scale(1.04); border-color: rgba(230,57,70,.5); }
+.result-gallery-item img {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+}
+/* Lightbox */
+#asst-lightbox {
+    position: fixed; inset: 0; z-index: 9999;
+    background: rgba(0,0,0,.92); backdrop-filter: blur(8px);
+    display: none; align-items: center; justify-content: center;
+}
+#asst-lightbox.open { display: flex; }
+#asst-lightbox img { max-width: 92vw; max-height: 92vh; border-radius: 8px; }
+#asst-lightbox .lb-close {
+    position: absolute; top: 16px; right: 20px;
+    background: rgba(0,0,0,.6); border: 1px solid rgba(255,255,255,.2);
+    color: #fff; font-size: 1.1rem; width: 36px; height: 36px;
+    border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+#asst-lightbox .lb-prev, #asst-lightbox .lb-next {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    background: rgba(0,0,0,.5); border: 1px solid rgba(255,255,255,.15);
+    color: #fff; font-size: 1.3rem; width: 42px; height: 42px;
+    border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+#asst-lightbox .lb-prev { left: 16px; }
+#asst-lightbox .lb-next { right: 16px; }
 </style>
 
 <div class="page-header">
@@ -507,35 +468,30 @@ $taskStatusLabels = [
                 </div>
             </div>
 
-            <!-- Nộp kết quả (Form upload) -->
+            <!-- Nộp kết quả — Multi-image drop zone -->
             <div id="uploadResultSection" style="display:none; margin-top:20px; border-top:1px solid var(--border); padding-top:20px;">
-                <p class="text-xs text-muted font-bold mb-8" style="text-transform:uppercase;">Nộp tệp kết quả (PNG, PSD hoặc ZIP):</p>
-                <form id="submitResultForm" method="POST" enctype="multipart/form-data">
-                    <input type="hidden" name="action" value="submit_task_result">
-                    <input type="hidden" name="task_id" id="submitTaskId" value="">
-
-                    <div class="form-group">
-                        <input type="file" name="file_result" class="form-control" accept=".png,.psd,.zip" required>
-                        <p class="text-xs text-muted mt-8">Hỗ trợ các file vẽ nét đứt/shading PNG, file Photoshop gốc (PSD) hoặc file ZIP chứa thư mục (tối đa 50MB).</p>
+                <p class="text-xs text-muted font-bold mb-8" style="text-transform:uppercase;">Nộp ảnh kết quả (JPG / PNG / WEBP — nhiều ảnh):</p>
+                <div class="img-upload-drop" id="imgDropZone">
+                    <input type="file" id="imgFileInput" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+                           multiple onchange="handleImgSelect(this.files)">
+                    <div>
+                        <div style="font-size:2rem;margin-bottom:8px;">🖼️</div>
+                        <div style="font-size:.85rem;font-weight:700;">Kéo ảnh vào đây hoặc click để chọn</div>
+                        <div class="text-xs text-muted mt-4">JPG, PNG, WEBP &mdash; không giới hạn số lượng &mdash; tối đa 20MB/ảnh</div>
                     </div>
-
-                    <button type="submit" class="btn btn-primary" style="width:100%;">
-                        🚀 Nộp Kết Quả
-                    </button>
-                </form>
+                </div>
+                <div class="img-preview-grid" id="imgPreviewGrid"></div>
+                <div class="upload-status-bar" id="uploadStatusBar"></div>
+                <button id="submitImgsBtn" class="btn btn-primary" style="width:100%;margin-top:12px;display:none;"
+                        onclick="submitImages()">
+                    🚀 Nộp Kết Quả (<span id="imgCountLabel">0</span> ảnh)
+                </button>
             </div>
 
-            <!-- Kết quả đã nộp (Nếu có) -->
+            <!-- Kết quả đã nộp (Gallery) -->
             <div id="submittedResultSection" style="display:none; margin-top:20px; border-top:1px solid var(--border); padding-top:20px;">
-                <p class="text-xs text-muted font-bold mb-8" style="text-transform:uppercase;">Kết quả đã tải lên trước đó:</p>
-                <div style="display:flex; align-items:center; gap:12px; background:rgba(255,255,255,0.03); padding:10px 14px; border-radius:8px; border:1px solid var(--border);">
-                    <div style="font-size:1.5rem;">📄</div>
-                    <div style="min-width:0; flex:1;">
-                        <div class="text-sm font-bold truncate">File sản phẩm kết quả</div>
-                        <div class="text-xs text-muted" id="submittedTimeText">Nhấn nút bên phải để tải về kiểm tra</div>
-                    </div>
-                    <a id="downloadResultLink" href="" download class="btn btn-secondary btn-sm">Tải về</a>
-                </div>
+                <p class="text-xs text-muted font-bold mb-8" style="text-transform:uppercase;">Kết quả đã nộp:</p>
+                <div class="result-gallery" id="resultGallery"></div>
             </div>
         </div>
         <div class="modal-footer">
@@ -544,14 +500,23 @@ $taskStatusLabels = [
     </div>
 </div>
 
+<!-- Lightbox -->
+<div id="asst-lightbox">
+    <button class="lb-close" onclick="closeLightbox()">✕</button>
+    <button class="lb-prev" id="lbPrev" onclick="lbNav(-1)">&#8249;</button>
+    <img id="lbImg" src="" alt="">
+    <button class="lb-next" id="lbNext" onclick="lbNav(1)">&#8250;</button>
+</div>
+
 <script>
 /* Dữ liệu Tasks dạng JS object truyền từ PHP */
 const TASKS_DATA = <?= $jsTasksData ?>;
 // Nhận ID task bị lỗi từ PHP truyền xuống (nếu không có lỗi thì mặc định là 0)
-const errorTaskId = <?= isset($errorTaskId) ? (int)$errorTaskId : 0 ?>; 
+const errorTaskId = 0; // Không dùng PHP POST nữa — AJAX xử lý lỗi trực tiếp
+const BASE_URL_JS = <?= json_encode(BASE_URL) ?>;
 
 // Lấy tham số task_id để tự động mở modal nếu đi từ dashboard
-const urlParams = new URLSearchParams(window.location.search);
+const urlParams    = new URLSearchParams(window.location.search);
 const autoOpenTaskId = parseInt(urlParams.get('task_id') || '0');
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -561,17 +526,49 @@ document.addEventListener('DOMContentLoaded', function() {
     if (targetTaskId > 0 && TASKS_DATA[targetTaskId]) {
         openTaskModal(targetTaskId);
     }
+    // Drag & drop support
+    const drop = document.getElementById('imgDropZone');
+    if (drop) {
+        drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag-over'); });
+        drop.addEventListener('dragleave', () => drop.classList.remove('drag-over'));
+        drop.addEventListener('drop', e => {
+            e.preventDefault();
+            drop.classList.remove('drag-over');
+            handleImgSelect(e.dataTransfer.files);
+        });
+    }
 });
+
+/* ── State ── */
+let _currentTaskId = null;
+let _selectedFiles = []; // Array of File objects
+let _uploadedPaths = []; // Array of paths returned by upload API
+
+/* ── Parse file_result (string or JSON array) ── */
+function parseResultUrls(task) {
+    const raw = task.file_result_raw;
+    if (!raw) return [];
+    try {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) {
+            return arr.map(p => BASE_URL_JS + 'assets/uploads/' + p);
+        }
+    } catch(e) {}
+    return [BASE_URL_JS + 'assets/uploads/' + raw];
+}
+
 function openTaskModal(taskId) {
     const task = TASKS_DATA[taskId];
     if (!task) return;
+    _currentTaskId = taskId;
+    _selectedFiles = [];
+    _uploadedPaths = [];
 
     // Thiết lập thông tin
     document.getElementById('modalTitle').textContent = `Nhiệm vụ #${task.id} — Trang ${task.page_number}`;
     document.getElementById('modalSeries').textContent = task.series_title;
     document.getElementById('modalChapter').textContent = `Chương ${task.chapter_number}: ${task.chapter_title}`;
     document.getElementById('modalMangaka').textContent = task.mangaka_name;
-    document.getElementById('submitTaskId').value = task.id;
 
     // Config hạn chót
     const dueEl = document.getElementById('modalDueDate');
@@ -584,7 +581,7 @@ function openTaskModal(taskId) {
         dueEl.className = 'badge badge-gray';
     }
 
-    // Config Loại công việc (Badge style)
+    // Config Loại công việc
     const typeColors = {
         'background': ['Phông nền', '#10b981', 'rgba(16,185,129,.15)'],
         'shading':    ['Đổ bóng',   '#3b82f6', 'rgba(59,130,246,.15)'],
@@ -627,13 +624,10 @@ function openTaskModal(taskId) {
     const img = document.getElementById('origPageImg');
     const highlight = document.getElementById('regionHighlight');
     const downloadOrig = document.getElementById('downloadOrigLink');
-    
     if (task.original_file) {
         img.src = task.original_file;
         downloadOrig.href = task.original_file;
         downloadOrig.style.display = 'inline-block';
-        
-        // Vẽ ô vùng chọn (region_data chứa x, y, w, h dạng tỷ lệ %)
         const r = task.region_data || {};
         highlight.style.left   = (r.x || 0) + '%';
         highlight.style.top    = (r.y || 0) + '%';
@@ -646,20 +640,30 @@ function openTaskModal(taskId) {
         highlight.style.display = 'none';
     }
 
-    // Section Nộp sản phẩm (Chỉ hiển thị khi status cho phép sửa/nộp)
-    const uploadSec = document.getElementById('uploadResultSection');
-    if (['pending', 'in_progress', 'revision'].includes(task.status)) {
-        uploadSec.style.display = 'block';
-    } else {
-        uploadSec.style.display = 'none';
-    }
+    // Reset upload section
+    document.getElementById('imgPreviewGrid').innerHTML = '';
+    document.getElementById('uploadStatusBar').textContent = '';
+    document.getElementById('submitImgsBtn').style.display = 'none';
+    document.getElementById('imgCountLabel').textContent = '0';
 
-    // Section Sản phẩm đã nộp trước đó
+    // Upload Section
+    const uploadSec = document.getElementById('uploadResultSection');
+    uploadSec.style.display = ['pending', 'in_progress', 'revision'].includes(task.status) ? 'block' : 'none';
+
+    // Submitted gallery
     const submittedSec = document.getElementById('submittedResultSection');
-    const downloadRes = document.getElementById('downloadResultLink');
-    if (task.file_result) {
+    const gallery = document.getElementById('resultGallery');
+    const resultUrls = parseResultUrls(task);
+    if (resultUrls.length > 0) {
         submittedSec.style.display = 'block';
-        downloadRes.href = task.file_result;
+        gallery.innerHTML = '';
+        resultUrls.forEach((url, i) => {
+            const item = document.createElement('div');
+            item.className = 'result-gallery-item';
+            item.onclick = () => openLightbox(resultUrls, i);
+            item.innerHTML = `<img src="${url}" alt="Kết quả ${i+1}" loading="lazy">`;
+            gallery.appendChild(item);
+        });
     } else {
         submittedSec.style.display = 'none';
     }
@@ -668,21 +672,147 @@ function openTaskModal(taskId) {
     document.getElementById('taskDetailModal').classList.add('open');
 }
 
+/* ── Multi-image select & preview ── */
+function handleImgSelect(files) {
+    if (!files || files.length === 0) return;
+    const grid = document.getElementById('imgPreviewGrid');
+    Array.from(files).forEach(file => {
+        if (!file.type.startsWith('image/')) return;
+        if (file.size > 20 * 1024 * 1024) {
+            alert(`Ảnh "${file.name}" quá 20MB, bỏ qua.`);
+            return;
+        }
+        _selectedFiles.push(file);
+        const idx = _selectedFiles.length - 1;
+        const reader = new FileReader();
+        reader.onload = e => {
+            const item = document.createElement('div');
+            item.className = 'img-preview-item';
+            item.id = `prev-${idx}`;
+            item.innerHTML = `
+                <img src="${e.target.result}" alt="">
+                <button class="remove-btn" onclick="removeImg(${idx})">×</button>
+            `;
+            grid.appendChild(item);
+        };
+        reader.readAsDataURL(file);
+    });
+    updateSubmitBtn();
+}
+
+function removeImg(idx) {
+    _selectedFiles[idx] = null; // mark removed
+    const el = document.getElementById(`prev-${idx}`);
+    if (el) el.remove();
+    updateSubmitBtn();
+}
+
+function updateSubmitBtn() {
+    const count = _selectedFiles.filter(f => f !== null).length;
+    document.getElementById('imgCountLabel').textContent = count;
+    document.getElementById('submitImgsBtn').style.display = count > 0 ? 'block' : 'none';
+}
+
+/* ── Upload & Submit ── */
+async function submitImages() {
+    const files = _selectedFiles.filter(f => f !== null);
+    if (files.length === 0) return;
+
+    const btn = document.getElementById('submitImgsBtn');
+    btn.disabled = true;
+    const statusBar = document.getElementById('uploadStatusBar');
+    statusBar.textContent = `Đang upload 0/${files.length} ảnh...`;
+
+    const uploadedPaths = [];
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        statusBar.textContent = `Đang upload ${i+1}/${files.length}: ${file.name}...`;
+        const fd = new FormData();
+        fd.append('file', file);
+        fd.append('upload_type', 'task_result');
+        try {
+            const res  = await fetch(BASE_URL_JS + 'api/upload.php', { method: 'POST', body: fd });
+            const json = await res.json();
+            if (json.success) {
+                uploadedPaths.push(json.data.path);
+                // Mark preview as done
+                const prevEl = document.getElementById(`prev-${_selectedFiles.indexOf(file)}`);
+                if (prevEl) {
+                    const ov = document.createElement('div');
+                    ov.className = 'upload-overlay';
+                    ov.textContent = '✓ Xong';
+                    prevEl.appendChild(ov);
+                }
+            } else {
+                statusBar.textContent = `Lỗi upload "${file.name}": ${json.message}`;
+                btn.disabled = false;
+                return;
+            }
+        } catch(err) {
+            statusBar.textContent = `Lỗi kết nối: ${err.message}`;
+            btn.disabled = false;
+            return;
+        }
+    }
+
+    // Submit task
+    statusBar.textContent = 'Xác nhận nộp kết quả...';
+    try {
+        const fd2 = new FormData();
+        fd2.append('action', 'submit_task');
+        fd2.append('task_id', _currentTaskId);
+        fd2.append('file_paths', JSON.stringify(uploadedPaths));
+        const res2  = await fetch(BASE_URL_JS + 'api/tasks.php', { method: 'POST', body: fd2 });
+        const json2 = await res2.json();
+        if (json2.success) {
+            statusBar.textContent = `✔ Nộp thành công ${uploadedPaths.length} ảnh!`;
+            statusBar.style.color = '#10b981';
+            btn.textContent = 'Đã nộp ✓';
+            setTimeout(() => window.location.reload(), 1200);
+        } else {
+            statusBar.textContent = 'Lỗi nộp: ' + json2.message;
+            btn.disabled = false;
+        }
+    } catch(err) {
+        statusBar.textContent = 'Lỗi kết nối: ' + err.message;
+        btn.disabled = false;
+    }
+}
+
+/* ── Lightbox ── */
+let _lbUrls = [], _lbIdx = 0;
+function openLightbox(urls, idx) {
+    _lbUrls = urls;
+    _lbIdx  = idx;
+    document.getElementById('lbImg').src = urls[idx];
+    document.getElementById('lbPrev').style.display = urls.length > 1 ? 'flex' : 'none';
+    document.getElementById('lbNext').style.display = urls.length > 1 ? 'flex' : 'none';
+    document.getElementById('asst-lightbox').classList.add('open');
+}
+function closeLightbox() {
+    document.getElementById('asst-lightbox').classList.remove('open');
+    document.getElementById('lbImg').src = '';
+}
+function lbNav(dir) {
+    _lbIdx = (_lbIdx + dir + _lbUrls.length) % _lbUrls.length;
+    document.getElementById('lbImg').src = _lbUrls[_lbIdx];
+}
+document.getElementById('asst-lightbox').addEventListener('click', function(e) {
+    if (e.target === this) closeLightbox();
+});
+
 function closeTaskModal() {
     document.getElementById('taskDetailModal').classList.remove('open');
-    
-    // Xóa tham số URL để tránh tự động mở lại khi load trang sau
     const url = new URL(window.location);
     url.searchParams.delete('task_id');
     window.history.replaceState({}, '', url);
 }
 
-// Định dạng ngày
 function formatDate(dateStr) {
     if (!dateStr) return '';
     const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return dateStr; // Trả về nguyên gốc nếu chuỗi lỗi
-    return d.toLocaleDateString('vi-VN'); // Tự động định dạng chuẩn DD/MM/YYYY
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString('vi-VN');
 }
 </script>
 

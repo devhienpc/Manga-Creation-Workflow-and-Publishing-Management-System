@@ -377,7 +377,7 @@ $annotationStatusLabels = [
                     </div>
                     
                     <div style="display:flex; gap:8px;">
-                        <a href="<?= BASE_URL . $manuscriptDetail['file_path'] ?>" download class="btn btn-secondary btn-sm">
+                        <a href="<?= BASE_URL . 'assets/uploads/' . $manuscriptDetail['file_path'] ?>" download class="btn btn-secondary btn-sm">
                             📥 Tải file bản thảo
                         </a>
                         <?php if ($manuscriptDetail['status'] === 'rejected'): ?>

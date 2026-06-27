@@ -798,7 +798,7 @@ $rejectedCount = (int) ($stats['cnt_rejected'] ?? 0);
                             <polyline points="14 2 14 8 20 8" />
                         </svg>
                         <h3>Đọc Bản Thảo</h3>
-                        <a href="<?= BASE_URL . htmlspecialchars($selectedSub['file_path']) ?>" target="_blank" download
+                        <a href="<?= BASE_URL . 'assets/uploads/' . htmlspecialchars($selectedSub['file_path']) ?>" target="_blank" download
                             class="btn btn-secondary btn-sm" style="margin-left:auto; font-size:0.75rem; padding:5px 12px;">
                             📥 Tải về (PDF/ZIP)
                         </a>
@@ -807,7 +807,7 @@ $rejectedCount = (int) ($stats['cnt_rejected'] ?? 0);
                     <?php
                     $filePath = $selectedSub['file_path'];
                     $fileExt = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
-                    $fileUrl = BASE_URL . htmlspecialchars($filePath);
+                    $fileUrl = BASE_URL . 'assets/uploads/' . htmlspecialchars($filePath);
                     ?>
 
                     <?php if ($fileExt === 'pdf'): ?>
