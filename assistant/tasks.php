@@ -115,8 +115,8 @@ foreach ($taskList as $task) {
         'region_data'    => json_decode($task['region_data'] ?? '{}', true),
         'due_date'       => $task['due_date'],
         'file_result_raw'=> $task['file_result'], // raw value from DB
-        'file_result'    => $task['file_result'] ? BASE_URL . 'assets/uploads/' . $task['file_result'] : null,
-        'original_file'  => $task['original_file'] ? BASE_URL . $task['original_file'] : null,
+        'file_result'    => $task['file_result'] ? manuscriptUrl($task['file_result']) : null,
+        'original_file'  => $task['original_file'] ? manuscriptUrl($task['original_file']) : null,
         'page_number'    => $task['page_number'],
         'chapter_number' => $task['chapter_number'],
         'chapter_title'  => $task['chapter_title'],
@@ -548,13 +548,14 @@ let _uploadedPaths = []; // Array of paths returned by upload API
 function parseResultUrls(task) {
     const raw = task.file_result_raw;
     if (!raw) return [];
+    const resolveFn = window.resolveAssetUrl || (p => BASE_URL_JS + (p.startsWith('assets/') ? p : 'assets/' + p));
     try {
         const arr = JSON.parse(raw);
         if (Array.isArray(arr)) {
-            return arr.map(p => BASE_URL_JS + 'assets/uploads/' + p);
+            return arr.map(p => resolveFn(p));
         }
     } catch(e) {}
-    return [BASE_URL_JS + 'assets/uploads/' + raw];
+    return [resolveFn(raw)];
 }
 
 function openTaskModal(taskId) {

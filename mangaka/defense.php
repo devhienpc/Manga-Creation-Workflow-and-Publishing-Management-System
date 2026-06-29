@@ -38,6 +38,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $stmt = $db->prepare("INSERT INTO defenses (mangaka_id, chapter_id, manuscript_id, reason, status, created_at, updated_at) VALUES (?, ?, ?, ?, 'pending', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)");
             $stmt->execute([$mangakaId, $chapterId, $manuscriptId, $reason]);
 
+            // Gửi thông báo cho Editor và Board
+            $editors = $db->prepare("SELECT id FROM users WHERE role IN ('editor', 'board') AND is_active = 1");
+            $editors->execute();
+            $notifStmt = $db->prepare(
+                "INSERT INTO notifications (user_id, type, message, link)
+                 VALUES (?, 'defense_submitted', ?, 'editor/defense.php')"
+            );
+            $notifMsg = "🛡️ Họa sĩ vừa gửi đơn giải trình bảo vệ tác phẩm mới. Vui lòng vào mục Bảo Vệ Tác Phẩm để xem xét.";
+            foreach ($editors->fetchAll() as $ed) {
+                $notifStmt->execute([$ed['id'], $notifMsg]);
+            }
+
             $db->commit();
             $_SESSION['success'] = "Đã gửi đơn giải trình thành công!";
         } catch (\Throwable $e) {

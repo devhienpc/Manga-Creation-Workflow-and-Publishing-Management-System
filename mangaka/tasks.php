@@ -262,19 +262,22 @@ $pageStatusLabels = [
 .result-file-badge.zip  { color:#7c3aed; }
 .result-file-badge.img  { color:#10b981; }
 
-/* Page upload overlay */
-.page-thumb-upload {
-    position: absolute; inset:0; z-index:3;
-    background: rgba(0,0,0,.55); backdrop-filter:blur(2px);
-    display:flex; align-items:center; justify-content:center;
+/* Thumbnail actions (upload, view) */
+.page-thumb-actions {
+    position: absolute; bottom: 6px; right: 6px; z-index:3;
+    display:flex; gap: 4px;
     opacity:0; transition: opacity .2s;
-    border-radius:6px;
-    cursor: pointer;
-    flex-direction: column;
-    gap: 4px;
 }
-.page-thumb:hover .page-thumb-upload { opacity:1; }
-.page-thumb-upload span { font-size:.6rem; color:#fff; font-weight:700; }
+.page-thumb:hover .page-thumb-actions { opacity:1; }
+.thumb-action-btn {
+    background: rgba(0,0,0,.7); backdrop-filter:blur(2px);
+    display:flex; align-items:center; justify-content:center;
+    width: 28px; height: 28px; border-radius:50%;
+    border: 1px solid rgba(255,255,255,.2); color: #fff;
+    cursor: pointer; transition: transform .15s, background .15s;
+}
+.thumb-action-btn:hover { transform: scale(1.1); background: rgba(0,0,0,.9); border-color: rgba(255,255,255,.4); }
+.thumb-action-btn svg { width: 14px; height: 14px; stroke: #fff; }
 
 /* PDF badge on thumbnail */
 .page-thumb-pdf {
@@ -398,7 +401,7 @@ $pageStatusLabels = [
 </div>
 
 <!-- Hidden file input for page upload -->
-<input type="file" id="pageFileInput" accept="image/jpeg,image/png,image/webp,application/pdf,.jpg,.jpeg,.png,.webp,.pdf"
+<input type="file" id="pageFileInput" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
        style="display:none;" onchange="handlePageFileSelect(this)">
 
 <?php
@@ -409,7 +412,7 @@ $jsPages = json_encode(array_map(fn($p) => [
     'file'       => !empty($p['original_file'])  ? BASE_URL . $p['original_file']  : null,
     'composite'  => !empty($p['composite_file']) ? BASE_URL . $p['composite_file'] : null,
     'status'     => $p['status'],
-], $pages));
+], $pages), JSON_INVALID_UTF8_SUBSTITUTE) ?: '[]';
 $jsSeriesId = $seriesId;
 
 // Tasks per page (for overlay rendering) - only for selected chapter
@@ -428,7 +431,7 @@ if ($selectedChapterId) {
         $pageTasks[$t['page_id']][] = $t;
     }
 }
-$jsPageTasks = json_encode($pageTasks);
+$jsPageTasks = json_encode($pageTasks, JSON_INVALID_UTF8_SUBSTITUTE) ?: '{}';
 $jsTaskTypeColors = json_encode([
     'background' => '#10b981',
     'shading'    => '#3b82f6',
@@ -524,10 +527,16 @@ $jsTaskTypeColors = json_encode([
                 <span class="page-thumb-taskcount"><?= $taskCnt ?></span>
                 <?php endif; ?>
                 <div class="page-thumb-label">Trang <?= $pg['page_number'] ?></div>
-                <!-- Upload overlay -->
-                <div class="page-thumb-upload" onclick="event.stopPropagation();triggerPageUpload(<?= $pg['id'] ?>, <?= $pg['page_number'] ?>)" title="Tải ảnh lên">
-                    <svg width="18" height="18" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
-                    <span>Tải ảnh</span>
+                <!-- Action buttons -->
+                <div class="page-thumb-actions">
+                    <?php if (!empty($pg['original_file'])): ?>
+                    <div class="thumb-action-btn" onclick='event.stopPropagation();openLightbox(<?= htmlspecialchars(json_encode(BASE_URL . $pg['original_file'])) ?>)' title="Xem phóng to">
+                        <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    </div>
+                    <?php endif; ?>
+                    <div class="thumb-action-btn" onclick="event.stopPropagation();triggerPageUpload(<?= $pg['id'] ?>, <?= $pg['page_number'] ?>)" title="Tải lại ảnh / Đổi ảnh">
+                        <svg fill="none" stroke-width="2" viewBox="0 0 24 24"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+                    </div>
                 </div>
                 <div class="upload-progress" id="prog-<?= $pg['id'] ?>">
                     <div class="upload-progress-bar" id="progbar-<?= $pg['id'] ?>"></div>
@@ -561,9 +570,9 @@ $jsTaskTypeColors = json_encode([
                    style="display:none;width:100%;height:70vh;border:none;" />
             <!-- No file placeholder -->
             <div id="pageEmpty" style="display:flex;align-items:center;justify-content:center;min-height:220px;flex-direction:column;gap:12px;color:var(--text-muted);">
-                <div style="font-size:3rem;">📄</div>
+                <div style="font-size:3rem;">🖼️</div>
                 <p style="font-size:.85rem;text-align:center;">Trang chưa có ảnh.<br>
-                    <a href="#" onclick="event.preventDefault();triggerPageUploadCurrent()" style="color:var(--red);">📤 Tải ảnh/PDF lên ngay</a>
+                    <a href="#" onclick="event.preventDefault();triggerPageUploadCurrent()" style="color:var(--red);">📤 Tải ảnh lên ngay (JPG/PNG để khoanh vùng)</a>
                 </p>
             </div>
             <div class="canvas-overlay" id="canvasOverlay"
@@ -697,13 +706,13 @@ $jsTaskTypeColors = json_encode([
                             $resFiles = [];
                             $decoded = json_decode($raw, true);
                             if (is_array($decoded)) {
-                                // Nhiều ảnh — JSON array
+                                // Nhiều ảnh — JSON array (paths đã có assets/uploads/ prefix)
                                 foreach ($decoded as $p) {
-                                    $resFiles[] = BASE_URL . 'assets/uploads/' . $p;
+                                    $resFiles[] = manuscriptUrl(normalizeFilePath($p));
                                 }
                             } else {
                                 // File đơn (backward compat)
-                                $resFiles[] = BASE_URL . $raw;
+                                $resFiles[] = manuscriptUrl(normalizeFilePath($raw));
                             }
                             $firstUrl = htmlspecialchars($resFiles[0]);
                             $allUrlsJson = htmlspecialchars(json_encode($resFiles));
@@ -713,7 +722,7 @@ $jsTaskTypeColors = json_encode([
                             <img class="result-thumb"
                                  src="<?= $firstUrl ?>"
                                  alt="Kết quả"
-                                 onclick="openLightbox([<?= $firstUrl ?>], 0)"
+                                 onclick='openLightbox([<?= htmlspecialchars(json_encode($resFiles[0])) ?>], 0)'
                                  title="Click để xem"
                                  onerror="this.style.display='none'">
                             <?php else: ?>
@@ -774,7 +783,8 @@ $jsTaskTypeColors = json_encode([
         <p style="font-weight:700;margin-bottom:8px;">Chọn trang & khoanh vùng</p>
         <p class="text-muted" style="font-size:.85rem;line-height:1.6;">
             Chọn chapter và thumbnail trang bên trái,<br>
-            sau đó kéo chuột trên ảnh để vẽ vùng cần giao việc.
+            sau đó <strong>kéo chuột trên ảnh</strong> để vẽ vùng cần giao việc.<br><br>
+            <i>Lưu ý: Bạn phải tải lên file ảnh (JPG/PNG), hệ thống không hỗ trợ khoanh vùng trên file PDF.</i>
         </p>
     </div>
 
@@ -957,8 +967,13 @@ function renderRegionBoxes(pid) {
     container.innerHTML = '';
     const tasks = PAGE_TASKS[pid] || [];
     tasks.forEach(t => {
-        const r = t.region_data;
-        if (!r) return;
+        if (!t.region_data || t.region_data === 'null') return;
+        let r;
+        try {
+            r = typeof t.region_data === 'string' ? JSON.parse(t.region_data) : t.region_data;
+        } catch(e) { return; }
+        if (!r || !r.w) return;
+
         const color = TYPE_COLORS[t.task_type] || '#888';
         const box = document.createElement('div');
         box.className = 'region-box';

@@ -892,7 +892,347 @@
         showLoader,
         hideLoader,
         esc,
+        downloadZip: (imgs, name) => downloadZip(imgs, name),
+        openWebtoonReader: (imgs, title, name) => openWebtoonReader(imgs, title, name),
     };
+
+    /* ═══════════════════════════════════════════════════════
+       BULK DOWNLOAD (JSZIP AT FRONTEND) & WEBTOON READER
+       ═══════════════════════════════════════════════════════ */
+    function showZipProgressModal(total) {
+        let el = document.getElementById('zipProgressOverlay');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'zipProgressOverlay';
+            el.className = 'zip-progress-overlay';
+            el.innerHTML = `
+                <div class="zip-progress-card">
+                    <div style="font-size:2.2rem; margin-bottom:10px;">📦</div>
+                    <h4 id="zipProgressTitle" style="margin:0; font-size:1.1rem; color:#fff; font-weight:700;">Đang chuẩn bị nén ZIP...</h4>
+                    <div class="zip-progress-bar-wrap">
+                        <div id="zipProgressBarFill" class="zip-progress-bar-fill"></div>
+                    </div>
+                    <div id="zipProgressSub" style="font-size:0.85rem; color:var(--text-muted, #94a3b8);">Vui lòng chờ trong giây lát...</div>
+                </div>
+            `;
+            document.body.appendChild(el);
+        }
+        document.getElementById('zipProgressBarFill').style.width = '0%';
+        document.getElementById('zipProgressTitle').innerText = 'Đang chuẩn bị nén ZIP...';
+        document.getElementById('zipProgressSub').innerText = `0 / ${total} trang (0%)`;
+        el.classList.add('open');
+    }
+
+    function updateZipProgressModal(current, total, msg) {
+        const fill = document.getElementById('zipProgressBarFill');
+        const sub = document.getElementById('zipProgressSub');
+        if (fill && sub) {
+            const percent = Math.round((current / total) * 100);
+            fill.style.width = percent + '%';
+            sub.innerText = msg || `${current} / ${total} trang (${percent}%)`;
+        }
+    }
+
+    function hideZipProgressModal() {
+        const el = document.getElementById('zipProgressOverlay');
+        if (el) el.classList.remove('open');
+    }
+
+    function parseImagesInput(images) {
+        if (!images) return [];
+        let items = [];
+        if (typeof images === 'string') {
+            let str = images.replace(/&quot;/g, '"').replace(/&#039;/g, "'").trim();
+            if (str.startsWith('[') && str.endsWith(']')) {
+                try {
+                    let parsed = JSON.parse(str);
+                    if (Array.isArray(parsed)) items = parsed;
+                    else items = [str];
+                } catch (e) {
+                    items = [str];
+                }
+            } else {
+                items = [str];
+            }
+        } else if (Array.isArray(images)) {
+            items = images;
+        } else {
+            items = [String(images)];
+        }
+
+        let result = [];
+        for (let item of items) {
+            if (!item) continue;
+            if (typeof item === 'string') {
+                let str = item.replace(/&quot;/g, '"').replace(/&#039;/g, "'").trim();
+                if (str.startsWith('[') && str.endsWith(']')) {
+                    try {
+                        let parsed = JSON.parse(str);
+                        if (Array.isArray(parsed)) {
+                            result.push(...parsed);
+                            continue;
+                        }
+                    } catch (e) {}
+                }
+                result.push(str);
+            } else {
+                result.push(String(item));
+            }
+        }
+        return result;
+    }
+
+    function resolveAssetUrl(imgPath) {
+        if (!imgPath || typeof imgPath !== 'string') return '';
+        // Normalize: decode HTML entities, trim whitespace, convert Windows backslashes
+        imgPath = imgPath.replace(/&quot;/g, '').replace(/"/g, '').trim();
+        imgPath = imgPath.replace(/\\/g, '/');   // convert Windows \ to /
+
+        if (imgPath.startsWith('http://') || imgPath.startsWith('https://')) {
+            return imgPath;
+        }
+        const base = (typeof BASE_URL !== 'undefined') ? BASE_URL : '/';
+        const cleanBase = base.replace(/\/+$/, '');
+        let cleanPath = imgPath.replace(/^\/+/, '');
+
+        if (cleanPath.startsWith('assets/')) {
+            return cleanBase + '/' + cleanPath;
+        } else if (cleanPath.startsWith('uploads/')) {
+            return cleanBase + '/assets/' + cleanPath;
+        } else {
+            return cleanBase + '/assets/uploads/' + cleanPath;
+        }
+    }
+
+    async function downloadZip(imagesInput, zipName) {
+        const images = parseImagesInput(imagesInput);
+        if (!Array.isArray(images) || images.length === 0) {
+            showToast('Không tìm thấy trang ảnh bản thảo nào để tải về.', 'warning');
+            return;
+        }
+        if (typeof JSZip === 'undefined') {
+            showToast('Thư viện JSZip chưa sẵn sàng. Vui lòng kiểm tra lại.', 'error');
+            return;
+        }
+
+        const folderName = (zipName || 'BanThao_Chuong').replace(/[^a-zA-Z0-9_\-]/g, '_');
+        showZipProgressModal(images.length);
+
+        const zip = new JSZip();
+        const folder = zip.folder(folderName) || zip;
+        let completed = 0;
+        let lastErr = '';
+
+        for (let i = 0; i < images.length; i++) {
+            let imgPath = resolveAssetUrl(images[i]);
+            updateZipProgressModal(i, images.length, `Đang tải ảnh trang ${i + 1}/${images.length}...`);
+            try {
+                const response = await fetch(imgPath);
+                if (!response.ok) throw new Error('HTTP ' + response.status + ' (' + response.statusText + ')');
+                const blob = await response.blob();
+                let ext = imgPath.split('.').pop().split('?')[0].toLowerCase();
+                const allowedExts = ['jpg','jpeg','png','webp','gif','pdf','zip','rar'];
+                if (ext.length > 4 || ext.includes('/') || !allowedExts.includes(ext)) ext = 'jpg';
+                const pageNum = String(i + 1).padStart(2, '0');
+                const fileName = (images.length === 1 && (ext === 'pdf' || ext === 'zip')) ? `${folderName}.${ext}` : `Trang_${pageNum}.${ext}`;
+                folder.file(fileName, blob);
+                completed++;
+            } catch (err) {
+                console.error(`Lỗi khi nén trang ${i + 1} [${imgPath}]:`, err);
+                lastErr = err.message;
+            }
+        }
+
+        if (completed === 0) {
+            hideZipProgressModal();
+            showToast(`Không thể tải ảnh về máy. (${lastErr || 'Lỗi kết nối / file không tồn tại'})`, 'error');
+            return;
+        }
+
+        updateZipProgressModal(images.length, images.length, 'Đang tiến hành đóng gói ZIP...');
+
+        zip.generateAsync({ type: 'blob' }, (metadata) => {
+            const pct = Math.round(metadata.percent);
+            updateZipProgressModal(images.length, images.length, `Đang nén ZIP: ${pct}%`);
+        }).then((content) => {
+            hideZipProgressModal();
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(content);
+            a.download = `${folderName}.zip`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+            showToast(`Đã tải về thành công ${folderName}.zip!`, 'success');
+        }).catch((err) => {
+            hideZipProgressModal();
+            console.error(err);
+            showToast('Lỗi khi tạo file ZIP: ' + err.message, 'error');
+        });
+    }
+
+    let currentReaderImages = [];
+    let currentReaderIndex = 0;
+    let currentReaderMode = 'webtoon';
+    let currentReaderTitle = '';
+    let currentReaderZipName = '';
+
+    function openWebtoonReader(imagesInput, title, zipName) {
+        const images = parseImagesInput(imagesInput);
+        if (!Array.isArray(images) || images.length === 0) {
+            showToast('Bản thảo chưa có trang ảnh nào để xem.', 'warning');
+            return;
+        }
+        
+        currentReaderImages = images.map(imgPath => resolveAssetUrl(imgPath));
+        currentReaderIndex = 0;
+        currentReaderTitle = title || 'Bản Thảo Truyện';
+        currentReaderZipName = zipName || 'BanThao_Chuong';
+
+        let backdrop = document.getElementById('webtoonReaderModal');
+        if (!backdrop) {
+            backdrop = document.createElement('div');
+            backdrop.id = 'webtoonReaderModal';
+            backdrop.className = 'webtoon-modal-backdrop';
+            document.body.appendChild(backdrop);
+        }
+
+        renderReaderHTML();
+        backdrop.classList.add('open');
+        document.body.style.overflow = 'hidden';
+
+        window.removeEventListener('keydown', handleReaderKeyDown);
+        window.addEventListener('keydown', handleReaderKeyDown);
+    }
+
+    function closeWebtoonReader() {
+        const backdrop = document.getElementById('webtoonReaderModal');
+        if (backdrop) backdrop.classList.remove('open');
+        document.body.style.overflow = '';
+        window.removeEventListener('keydown', handleReaderKeyDown);
+    }
+
+    function handleReaderKeyDown(e) {
+        const backdrop = document.getElementById('webtoonReaderModal');
+        if (!backdrop || !backdrop.classList.contains('open')) return;
+        if (e.key === 'Escape') {
+            closeWebtoonReader();
+        } else if (currentReaderMode === 'gallery') {
+            if (e.key === 'ArrowLeft') switchGalleryPage(currentReaderIndex - 1);
+            if (e.key === 'ArrowRight') switchGalleryPage(currentReaderIndex + 1);
+        }
+    }
+
+    function setReaderMode(mode) {
+        currentReaderMode = mode;
+        renderReaderHTML();
+    }
+
+    function switchGalleryPage(index) {
+        if (index < 0 || index >= currentReaderImages.length) return;
+        currentReaderIndex = index;
+        const imgEl = document.getElementById('galleryMainImg');
+        const numEl = document.getElementById('galleryPageNum');
+        if (imgEl) imgEl.src = currentReaderImages[index];
+        if (numEl) numEl.innerText = `Trang ${index + 1} / ${currentReaderImages.length}`;
+
+        // Update nav buttons disabled state
+        const prevBtn = document.querySelector('.gallery-nav-btn.prev');
+        const nextBtn = document.querySelector('.gallery-nav-btn.next');
+        if (prevBtn) {
+            prevBtn.disabled = index <= 0;
+            prevBtn.setAttribute('onclick', `switchGalleryPage(${index - 1})`);
+        }
+        if (nextBtn) {
+            nextBtn.disabled = index >= currentReaderImages.length - 1;
+            nextBtn.setAttribute('onclick', `switchGalleryPage(${index + 1})`);
+        }
+        
+        const thumbs = document.querySelectorAll('.gallery-thumb-item');
+        thumbs.forEach((t, i) => {
+            if (i === index) {
+                t.classList.add('active');
+                t.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            } else {
+                t.classList.remove('active');
+            }
+        });
+    }
+
+    function renderReaderHTML() {
+        const backdrop = document.getElementById('webtoonReaderModal');
+        if (!backdrop) return;
+
+        const encodedImgs = JSON.stringify(currentReaderImages).replace(/"/g, '&quot;');
+
+        let contentHTML = '';
+        if (currentReaderMode === 'webtoon') {
+            contentHTML = `
+                <div class="webtoon-reader-body">
+                    <div class="webtoon-container">
+                        ${currentReaderImages.map((src, i) => `
+                            <div class="webtoon-page-item">
+                                <img src="${src}" class="webtoon-page-img" alt="Trang ${i+1}" loading="lazy">
+                                <div class="webtoon-page-num-tag">Trang ${i+1} / ${currentReaderImages.length}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        } else {
+            contentHTML = `
+                <div class="gallery-container">
+                    <div class="gallery-stage">
+                        <button class="gallery-nav-btn prev" onclick="switchGalleryPage(${currentReaderIndex - 1})" title="Trang trước (←)" ${currentReaderIndex <= 0 ? 'disabled' : ''}>‹</button>
+                        <img id="galleryMainImg" src="${currentReaderImages[currentReaderIndex]}" class="gallery-img" alt="Trang ${currentReaderIndex + 1}">
+                        <button class="gallery-nav-btn next" onclick="switchGalleryPage(${currentReaderIndex + 1})" title="Trang sau (→)" ${currentReaderIndex >= currentReaderImages.length - 1 ? 'disabled' : ''}>›</button>
+                    </div>
+                    <div class="gallery-thumbs-bar">
+                        ${currentReaderImages.map((src, i) => `
+                            <div class="gallery-thumb-item ${i === currentReaderIndex ? 'active' : ''}" onclick="switchGalleryPage(${i})" title="Trang ${i+1}">
+                                <img src="${src}" alt="Thumb ${i+1}">
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        backdrop.innerHTML = `
+            <div class="webtoon-reader-header">
+                <div class="webtoon-reader-title">
+                    <span style="font-size:1.2rem">📖</span>
+                    <span>${esc(currentReaderTitle)}</span>
+                    <span id="galleryPageNum" style="font-size:0.8rem; font-weight:500; color:var(--text-muted, #94a3b8); margin-left:8px;">
+                        ${currentReaderMode === 'gallery' ? `Trang ${currentReaderIndex + 1} / ${currentReaderImages.length}` : `(${currentReaderImages.length} trang)`}
+                    </span>
+                </div>
+                <div class="webtoon-reader-controls">
+                    <button class="reader-mode-btn ${currentReaderMode === 'webtoon' ? 'active' : ''}" onclick="setReaderMode('webtoon')" title="Cuộn đọc dạng Webtoon dọc">
+                        📜 Dọc (Webtoon)
+                    </button>
+                    <button class="reader-mode-btn ${currentReaderMode === 'gallery' ? 'active' : ''}" onclick="setReaderMode('gallery')" title="Xem dạng lướt hình Gallery">
+                        🖼️ Slide (Gallery)
+                    </button>
+                    <button class="btn btn-secondary btn-sm" onclick="downloadZip('${encodedImgs}', '${esc(currentReaderZipName)}')" style="background:rgba(99,102,241,0.2); color:#a5b4fc; border-color:rgba(99,102,241,0.4);">
+                        📥 Tải ZIP
+                    </button>
+                    <button class="btn btn-secondary btn-sm" onclick="closeWebtoonReader()" style="padding:4px 10px; font-size:1.1rem; border-radius:50%;">
+                        ✕
+                    </button>
+                </div>
+            </div>
+            ${contentHTML}
+        `;
+    }
+
+    window.downloadZip = downloadZip;
+    window.openWebtoonReader = openWebtoonReader;
+    window.closeWebtoonReader = closeWebtoonReader;
+    window.setReaderMode = setReaderMode;
+    window.switchGalleryPage = switchGalleryPage;
+    window.resolveAssetUrl = resolveAssetUrl;
+
 
 
     /* ═══════════════════════════════════════════════════════
