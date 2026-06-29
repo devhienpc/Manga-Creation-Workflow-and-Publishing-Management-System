@@ -1520,3 +1520,246 @@ textarea.auto-resize {
     .page-content { padding: 0; background: #fff; color: #000; }
     .card { border: 1px solid #ccc; break-inside: avoid; }
 }
+
+/* ============================================================
+   WEBTOON & GALLERY READER MODAL & ZIP PROGRESS
+   ============================================================ */
+.webtoon-modal-backdrop {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(8, 9, 15, 0.96);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+}
+.webtoon-modal-backdrop.open {
+    opacity: 1;
+    pointer-events: auto;
+}
+.webtoon-reader-header {
+    height: 60px;
+    background: rgba(18, 20, 32, 0.95);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    flex-shrink: 0;
+    z-index: 10;
+}
+.webtoon-reader-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.webtoon-reader-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.reader-mode-btn {
+    background: var(--bg-hover, rgba(255,255,255,0.06));
+    color: var(--text-muted, #94a3b8);
+    border: 1px solid var(--border, rgba(255,255,255,0.1));
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.reader-mode-btn.active, .reader-mode-btn:hover {
+    background: var(--accent-primary, #6366f1);
+    color: #fff;
+    border-color: var(--accent-primary, #6366f1);
+}
+.webtoon-reader-body {
+    flex: 1;
+    overflow-y: auto;
+    position: relative;
+    display: flex;
+    justify-content: center;
+    scroll-behavior: smooth;
+    padding: 20px 0;
+}
+.webtoon-container {
+    max-width: 850px;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    padding: 0 16px;
+    transition: transform 0.2s ease;
+}
+.webtoon-page-item {
+    width: 100%;
+    margin-bottom: 0;
+    display: flex;
+    justify-content: center;
+    position: relative;
+}
+.webtoon-page-img {
+    width: 100%;
+    height: auto;
+    display: block;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+    background: #121420;
+}
+.webtoon-page-num-tag {
+    position: absolute;
+    bottom: 12px;
+    right: 12px;
+    background: rgba(0,0,0,0.75);
+    color: #fff;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    backdrop-filter: blur(4px);
+    pointer-events: none;
+}
+
+/* Gallery Mode Styles */
+.gallery-container {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+.gallery-stage {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    position: relative;
+    overflow: hidden;
+    padding: 20px;
+}
+.gallery-img {
+    max-width: 90%;
+    max-height: 75vh;
+    object-fit: contain;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+    border-radius: 4px;
+    transition: transform 0.2s ease;
+}
+.gallery-nav-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(30, 35, 55, 0.85);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.15);
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    z-index: 5;
+}
+.gallery-nav-btn:hover {
+    background: var(--accent-primary, #6366f1);
+    transform: translateY(-50%) scale(1.1);
+}
+.gallery-nav-btn:disabled {
+    opacity: 0.25;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+.gallery-nav-btn.prev { left: 24px; }
+.gallery-nav-btn.next { right: 24px; }
+
+.gallery-thumbs-bar {
+    height: 80px;
+    width: 100%;
+    background: rgba(15, 17, 26, 0.95);
+    border-top: 1px solid rgba(255,255,255,0.08);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 20px;
+    overflow-x: auto;
+    flex-shrink: 0;
+}
+.gallery-thumb-item {
+    height: 60px;
+    width: 45px;
+    border-radius: 4px;
+    overflow: hidden;
+    border: 2px solid transparent;
+    opacity: 0.5;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: all 0.2s ease;
+}
+.gallery-thumb-item.active, .gallery-thumb-item:hover {
+    opacity: 1;
+    border-color: var(--accent-primary, #6366f1);
+}
+.gallery-thumb-item img {
+    width: 100%; height: 100%; object-fit: cover;
+}
+
+/* Zip Progress Overlay */
+.zip-progress-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(8px);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+}
+.zip-progress-overlay.open {
+    opacity: 1;
+    pointer-events: auto;
+}
+.zip-progress-card {
+    background: #1e2338;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 14px;
+    padding: 28px 36px;
+    width: 400px;
+    max-width: 90%;
+    text-align: center;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.7);
+    animation: scaleIn 0.2s ease;
+}
+.zip-progress-bar-wrap {
+    height: 10px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 5px;
+    overflow: hidden;
+    margin: 18px 0 12px;
+}
+.zip-progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #6366f1, #a855f7);
+    width: 0%;
+    transition: width 0.2s ease;
+}
+

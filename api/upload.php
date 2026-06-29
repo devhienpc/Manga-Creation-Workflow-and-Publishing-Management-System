@@ -62,8 +62,8 @@ const UPLOAD_CONFIG = [
     ],
     'page' => [
         'dir'           => 'assets/uploads/pages/',
-        'allowed_types' => ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'],
-        'allowed_exts'  => ['jpg', 'jpeg', 'png', 'webp', 'pdf'],
+        'allowed_types' => ['image/jpeg', 'image/png', 'image/webp'],
+        'allowed_exts'  => ['jpg', 'jpeg', 'png', 'webp'],
         'max_size'      => 20 * 1024 * 1024,  // 20 MB
         'max_size_label'=> '20MB',
     ],
@@ -193,7 +193,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // ── Tạo thư mục đích nếu chưa tồn tại ──
     $targetDir  = $projectRoot . str_replace('/', DIRECTORY_SEPARATOR, $cfg['dir']);
     $subDir     = $seriesId > 0 ? $seriesId . DIRECTORY_SEPARATOR : '';
-    $fullDir    = $targetDir . $subDir;
+    $fullDir    = $targetDir . $subDir; // OS-native separators for filesystem ops
 
     if (!is_dir($fullDir)) {
         if (!mkdir($fullDir, 0755, true)) {
@@ -215,9 +215,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // ── Tạo relative path để lưu vào DB ──
-    $relativePath = str_replace(DIRECTORY_SEPARATOR, '/', $cfg['dir']) . $subDir . $newName;
-    // Chuẩn hóa path (thay DIRECTORY_SEPARATOR nếu cần)
-    $relativePath = str_replace('//', '/', $relativePath);
+    // Normalize $subDir to forward slashes (important on Windows where DIRECTORY_SEPARATOR = '\')
+    $subDirWeb    = str_replace(DIRECTORY_SEPARATOR, '/', $subDir);
+    $relativePath = str_replace(DIRECTORY_SEPARATOR, '/', $cfg['dir']) . $subDirWeb . $newName;
+    // Chuẩn hóa path: xóa double-slash và backslash còn sót lại
+    $relativePath = str_replace(['\\', '//'], ['/', '/'], $relativePath);
+    $relativePath = ltrim($relativePath, '/');
 
     // ── Tạo URL public ──
     $publicUrl = rtrim(BASE_URL, '/') . '/' . ltrim($relativePath, '/');

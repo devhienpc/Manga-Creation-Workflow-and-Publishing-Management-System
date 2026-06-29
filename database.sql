@@ -72,7 +72,7 @@ CREATE TABLE manuscripts (
     id INT AUTO_INCREMENT PRIMARY KEY,
     series_id INT NOT NULL,
     chapter_id INT NOT NULL,
-    file_path VARCHAR(255) NOT NULL,
+    file_path LONGTEXT NOT NULL,
     version INT DEFAULT 1,
     submitted_by INT NOT NULL,
     status ENUM('pending', 'reviewing', 'approved', 'rejected') DEFAULT 'pending',

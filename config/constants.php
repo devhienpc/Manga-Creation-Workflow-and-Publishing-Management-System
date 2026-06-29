@@ -30,6 +30,41 @@ define('BASE_URL', $baseUrl);
 define('UPLOAD_PATH', dirname(__DIR__) . '/assets/uploads/');
 
 /**
+ * Chuẩn hóa đường dẫn file: chuyển backslash → forward slash, bỏ leading slash.
+ * Dùng trước khi lưu vào DB hoặc truyền sang JavaScript.
+ */
+function normalizeFilePath(?string $path): string {
+    if (empty($path)) return '';
+    return ltrim(str_replace('\\', '/', $path), '/');
+}
+
+/**
+ * Chuẩn hóa mảng đường dẫn trang truyện để truyền vào JS (json_encode an toàn).
+ * Backslash trong path gây lỗi JSON.parse ở JS do bị hiểu là Unicode escape (\u...).
+ */
+function normalizePageUrls(array $urls): array {
+    return array_map('normalizeFilePath', $urls);
+}
+
+/**
+ * Trả về URL đầy đủ cho file bản thảo / trang truyện.
+ */
+function manuscriptUrl(?string $path): ?string {
+    if (empty($path)) return null;
+    if (strpos($path, 'http://') === 0 || strpos($path, 'https://') === 0) {
+        return $path;
+    }
+    $clean = normalizeFilePath($path);
+    if (strpos($clean, 'assets/') === 0) {
+        return BASE_URL . $clean;
+    }
+    if (strpos($clean, 'uploads/') === 0) {
+        return BASE_URL . 'assets/' . $clean;
+    }
+    return BASE_URL . 'assets/uploads/' . $clean;
+}
+
+/**
  * Trả về URL đầy đủ cho ảnh bìa bộ truyện.
  * Xử lý 2 trường hợp:
  *   - Seed data cũ: 'assets/images/covers/xxx.png' → BASE_URL . 'assets/images/covers/xxx.png'

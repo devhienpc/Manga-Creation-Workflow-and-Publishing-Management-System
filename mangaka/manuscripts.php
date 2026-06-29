@@ -376,10 +376,42 @@ $annotationStatusLabels = [
                         </p>
                     </div>
                     
-                    <div style="display:flex; gap:8px;">
-                        <a href="<?= BASE_URL . 'assets/uploads/' . $manuscriptDetail['file_path'] ?>" download class="btn btn-secondary btn-sm">
-                            📥 Tải file bản thảo
-                        </a>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                        <?php 
+                        $mgkPageUrls = [];
+                        if (!empty($pages)) {
+                            foreach ($pages as $pg) {
+                                if (!empty($pg['original_file'])) {
+                                    $mgkPageUrls[] = normalizeFilePath($pg['original_file']);
+                                }
+                            }
+                        } elseif (!empty($manuscriptDetail['file_path'])) {
+                            $fp = $manuscriptDetail['file_path'];
+                            if (strpos($fp, '[') === 0) {
+                                $decoded = json_decode($fp, true);
+                                if (is_array($decoded)) $mgkPageUrls = normalizePageUrls($decoded);
+                            } else {
+                                $mgkPageUrls[] = normalizeFilePath($fp);
+                            }
+                        }
+                        $encodedMgkUrls = htmlspecialchars(json_encode($mgkPageUrls, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8');
+                        $mgkTitleStr = htmlspecialchars($manuscriptDetail['series_title'] . ' - Chương ' . $manuscriptDetail['chapter_number'], ENT_QUOTES, 'UTF-8');
+                        $mgkZipStr = htmlspecialchars('BanThao_Chuong' . $manuscriptDetail['chapter_number'], ENT_QUOTES, 'UTF-8');
+                        ?>
+                        
+                        <?php if (!empty($mgkPageUrls)): ?>
+                            <button onclick="openWebtoonReader('<?= $encodedMgkUrls ?>', '<?= $mgkTitleStr ?>', '<?= $mgkZipStr ?>')" class="btn btn-primary btn-sm" style="background:linear-gradient(135deg, #6366f1, #8b5cf6); border:none; box-shadow: 0 4px 12px rgba(99,102,241,0.3);">
+                                📖 Xem Bản Thảo (Webtoon)
+                            </button>
+                            <button onclick="downloadZip('<?= $encodedMgkUrls ?>', '<?= $mgkZipStr ?>')" class="btn btn-secondary btn-sm">
+                                📥 Tải file bản thảo (ZIP)
+                            </button>
+                        <?php else: ?>
+                            <a href="<?= htmlspecialchars(manuscriptUrl($manuscriptDetail['file_path'])) ?>" download class="btn btn-secondary btn-sm">
+                                📥 Tải file bản thảo
+                            </a>
+                        <?php endif; ?>
+
                         <?php if ($manuscriptDetail['status'] === 'rejected'): ?>
                             <button onclick="document.getElementById('defenseModal').classList.add('open')" class="btn btn-primary btn-sm">
                                 🛡️ Gửi giải trình
