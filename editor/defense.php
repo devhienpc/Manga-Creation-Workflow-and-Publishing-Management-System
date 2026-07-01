@@ -307,17 +307,21 @@ $historyList = $stmtHistory->fetchAll();
                                     </td>
                                     <td style="padding: 14px 20px; text-align: right;">
                                         <div style="display: inline-flex; gap: 8px; align-items: center;">
-                                            <button class="btn btn-secondary btn-sm" onclick="showReason(<?= htmlspecialchars(json_encode($row['reason'])) ?>, '<?= htmlspecialchars($row['series_title']) ?>', 'Chương <?= htmlspecialchars($row['chapter_number']) ?>')">
+                                            <button type="button" class="btn btn-secondary btn-sm" 
+                                                    data-reason="<?= htmlspecialchars($row['reason'], ENT_QUOTES, 'UTF-8') ?>"
+                                                    data-series="<?= htmlspecialchars($row['series_title'], ENT_QUOTES, 'UTF-8') ?>"
+                                                    data-chapter="Chương <?= htmlspecialchars($row['chapter_number'], ENT_QUOTES, 'UTF-8') ?>"
+                                                    onclick="openReasonModal(this)">
                                                 👁 Xem chi tiết
                                             </button>
                                             
-                                            <form action="" method="POST" style="display: inline;" onsubmit="return confirmApprove(event, '<?= htmlspecialchars($row['series_title']) ?>', <?= $row['chapter_number'] ?>)">
+                                            <form action="" method="POST" style="display: inline;" onsubmit='return confirmApprove(event, <?= htmlspecialchars(json_encode($row['series_title']), ENT_QUOTES, "UTF-8") ?>, <?= $row['chapter_number'] ?>)'>
                                                 <input type="hidden" name="defense_id" value="<?= $row['id'] ?>">
                                                 <input type="hidden" name="action" value="approved">
                                                 <button type="submit" class="btn btn-success btn-sm">✓ Duyệt</button>
                                             </form>
 
-                                            <form action="" method="POST" style="display: inline;" onsubmit="return confirmReject(event, '<?= htmlspecialchars($row['series_title']) ?>', <?= $row['chapter_number'] ?>)">
+                                            <form action="" method="POST" style="display: inline;" onsubmit='return confirmReject(event, <?= htmlspecialchars(json_encode($row['series_title']), ENT_QUOTES, "UTF-8") ?>, <?= $row['chapter_number'] ?>)'>
                                                 <input type="hidden" name="defense_id" value="<?= $row['id'] ?>">
                                                 <input type="hidden" name="action" value="rejected">
                                                 <button type="submit" class="btn btn-danger btn-sm">✕ Bác bỏ</button>
@@ -392,7 +396,11 @@ $historyList = $stmtHistory->fetchAll();
                                         <?= date('d/m/Y H:i', strtotime($row['updated_at'])) ?>
                                     </td>
                                     <td style="padding: 14px 20px; text-align: right;">
-                                        <button class="btn btn-secondary btn-sm" onclick="showReason(<?= htmlspecialchars(json_encode($row['reason'])) ?>, '<?= htmlspecialchars($row['series_title']) ?>', 'Chương <?= htmlspecialchars($row['chapter_number']) ?>')">
+                                        <button type="button" class="btn btn-secondary btn-sm" 
+                                                data-reason="<?= htmlspecialchars($row['reason'], ENT_QUOTES, 'UTF-8') ?>"
+                                                data-series="<?= htmlspecialchars($row['series_title'], ENT_QUOTES, 'UTF-8') ?>"
+                                                data-chapter="Chương <?= htmlspecialchars($row['chapter_number'], ENT_QUOTES, 'UTF-8') ?>"
+                                                onclick="openReasonModal(this)">
                                             👁 Xem lý do
                                         </button>
                                     </td>
@@ -407,7 +415,7 @@ $historyList = $stmtHistory->fetchAll();
 </div>
 
 <!-- Modal xem chi tiết lý do giải trình bảo vệ tác phẩm -->
-<div class="modal-backdrop" id="reasonModal" style="display: none;">
+<div class="modal-backdrop" id="reasonModal">
     <div class="modal-box" style="max-width: 580px;">
         <div class="modal-header">
             <h3 id="modalTitle" style="display: flex; align-items: center; gap: 8px; font-size: 1.15rem; font-weight: 700; color: #fff;">
@@ -518,13 +526,20 @@ function switchTab(tabId) {
 }
 
 /**
- * Hiển thị Modal chi tiết giải trình của họa sĩ
+ * Lấy dữ liệu từ data-attributes của nút bấm và hiển thị Modal
  */
-function showReason(reasonText, seriesTitle, chapterNum) {
+function openReasonModal(button) {
+    // Lấy dữ liệu từ các thuộc tính data-*
+    const reasonText = button.getAttribute('data-reason');
+    const seriesTitle = button.getAttribute('data-series');
+    const chapterNum = button.getAttribute('data-chapter');
+    
+    // Đổ dữ liệu vào Modal
     document.getElementById('modalReasonContent').textContent = reasonText;
     document.getElementById('modalSeries').textContent = seriesTitle;
     document.getElementById('modalChapter').textContent = chapterNum;
     
+    // Hiển thị Modal
     const modal = document.getElementById('reasonModal');
     modal.classList.add('open');
 }
