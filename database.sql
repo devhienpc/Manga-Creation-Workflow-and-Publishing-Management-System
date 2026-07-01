@@ -219,9 +219,9 @@ INSERT INTO users (id, username, email, password, role, avatar, bio) VALUES
 
 -- Seeding cho bảng series
 INSERT INTO series (id, mangaka_id, title, description, genre, status, cover_image, publish_schedule) VALUES
-(1, 1, 'Hành trình thế giới ảo', 'Một cậu bé tình cờ lạc vào thế giới trò chơi thực tế ảo đầy rẫy hiểm nguy nhưng cũng vô vàn phần thưởng hấp dẫn.', 'Isekai, Phiêu lưu, Action', 'publishing', 'assets/images/covers/isekai_journey.png', 'weekly'),
-(2, 1, 'Huyền thoại kiếm sĩ', 'Kiếm sĩ cuối cùng của vương quốc đi tìm kiếm thanh thần kiếm bị thất lạc để cứu lấy bờ cõi khỏi bóng tối.', 'Hành động, Fantasy', 'submitted', 'assets/images/covers/sword_legend.png', 'weekly'),
-(3, 1, 'Tình yêu học đường', 'Câu chuyện tình yêu nhẹ nhàng, hài hước giữa cô bạn lớp trưởng năng động và cậu học sinh cá biệt.', 'Romance, Slice of Life', 'draft', 'assets/images/covers/school_love.png', 'monthly');
+(1, 1, 'Hành trình thế giới ảo', 'Một cậu bé tình cờ lạc vào thế giới trò chơi thực tế ảo đầy rẫy hiểm nguy nhưng cũng vô vàn phần thưởng hấp dẫn.', 'Isekai, Phiêu lưu, Action', 'publishing', 'covers/thegioiao.jpg', 'weekly'),
+(2, 1, 'Huyền thoại kiếm sĩ', 'Kiếm sĩ cuối cùng của vương quốc đi tìm kiếm thanh thần kiếm bị thất lạc để cứu lấy bờ cõi khỏi bóng tối.', 'Hành động, Fantasy', 'submitted', 'covers/huyenthoaikiemsi.jpg', 'weekly'),
+(3, 1, 'Tình yêu học đường', 'Câu chuyện tình yêu nhẹ nhàng, hài hước giữa cô bạn lớp trưởng năng động và cậu học sinh cá biệt.', 'Romance, Slice of Life', 'draft', 'covers/tinhyeuhocduong.jpg', 'monthly');
 
 -- Seeding cho bảng chapters
 INSERT INTO chapters (id, series_id, chapter_number, title, status, deadline) VALUES
