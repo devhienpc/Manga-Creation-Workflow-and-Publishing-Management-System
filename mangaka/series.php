@@ -732,14 +732,15 @@ function sortUrl(string $field): string {
             <button onclick="document.getElementById('createChapterModal').classList.remove('open')" class="modal-close">×</button>
         </div>
 
-        <form method="POST">
+        <form method="POST" onsubmit="return validateCreateChapter(this)">
             <input type="hidden" name="action" value="create_chapter">
             <input type="hidden" name="series_id" id="chapterModalSeriesId" value="">
 
             <div class="modal-body">
                 <div class="form-group">
                     <label class="form-label">Số chương *</label>
-                    <input type="number" name="chapter_number" class="form-control" min="1" required placeholder="Ví dụ: 1, 2, 3...">
+                    <input type="number" name="chapter_number" class="form-control" min="1" required placeholder="Ví dụ: 1, 2, 3..." oninput="checkChapterNumber(this.value)">
+                    <div id="chapterError" class="text-xs" style="color:var(--red);margin-top:6px;display:none;"></div>
                 </div>
 
                 <div class="form-group">
@@ -756,8 +757,9 @@ function sortUrl(string $field): string {
             <div class="modal-footer">
                 <button type="button" onclick="document.getElementById('createChapterModal').classList.remove('open')"
                         class="btn btn-secondary">Hủy</button>
-                <button type="submit" class="btn btn-primary">
-                    💾 Tạo chương
+                <button type="submit" class="btn btn-primary" id="createChapterSubmitBtn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                    Tạo chương
                 </button>
             </div>
         </form>
@@ -995,6 +997,36 @@ async function handleBulkUploadSubmit(event) {
 function openCreateChapterModal(seriesId) {
     document.getElementById('chapterModalSeriesId').value = seriesId;
     document.getElementById('createChapterModal').classList.add('open');
+}
+
+// Validate create chapter to check for duplicate chapter numbers on submit
+function validateCreateChapter(form) {
+    const chapterNumber = parseInt(form.chapter_number.value, 10);
+    const existingChapters = <?= json_encode(array_map(function($c) { return (int)$c['chapter_number']; }, $detailChapters ?? [])) ?>;
+    
+    if (existingChapters.includes(chapterNumber)) {
+        document.getElementById('chapterError').textContent = 'Chương số ' + chapterNumber + ' đã tồn tại. Vui lòng chọn số chương khác!';
+        document.getElementById('chapterError').style.display = 'block';
+        return false;
+    }
+    return true;
+}
+
+// Live validation while typing chapter number
+function checkChapterNumber(value) {
+    const chapterNumber = parseInt(value, 10);
+    const existingChapters = <?= json_encode(array_map(function($c) { return (int)$c['chapter_number']; }, $detailChapters ?? [])) ?>;
+    const errorDiv = document.getElementById('chapterError');
+    const submitBtn = document.getElementById('createChapterSubmitBtn');
+    
+    if (!isNaN(chapterNumber) && existingChapters.includes(chapterNumber)) {
+        errorDiv.textContent = 'Chương số ' + chapterNumber + ' đã tồn tại. Vui lòng chọn số chương khác!';
+        errorDiv.style.display = 'block';
+        if (submitBtn) submitBtn.disabled = true;
+    } else {
+        errorDiv.style.display = 'none';
+        if (submitBtn) submitBtn.disabled = false;
+    }
 }
 
 // Open submit modal and pre-select series

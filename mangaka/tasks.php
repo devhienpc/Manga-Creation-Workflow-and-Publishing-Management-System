@@ -246,11 +246,11 @@ $pageStatusLabels = [
 }
 .task-actions { display:flex; gap:6px; flex-wrap:wrap; }
 .result-thumb {
-    width: 48px; height: 32px; object-fit:cover;
+    width: 90px; height: 60px; object-fit:cover;
     border-radius:4px; border:1px solid var(--border);
     cursor:pointer; transition: transform .15s;
 }
-.result-thumb:hover { transform:scale(1.1); }
+.result-thumb:hover { transform:scale(1.5); z-index: 10; position: relative; }
 .result-file-badge {
     display:inline-flex; align-items:center; gap:4px;
     padding:4px 8px; border-radius:6px; font-size:.7rem; font-weight:700;
@@ -588,8 +588,95 @@ $jsTaskTypeColors = json_encode([
         </div>
     </div>
 
+</div><!-- /.tasks-left -->
+
+<!-- ═══════════════════ RIGHT COLUMN (sticky form) ═══════════════════ -->
+<div class="tasks-right" id="tasksSidebar">
+
+    <!-- Waiting state -->
+    <div class="card" id="waitingState" style="text-align:center;padding:40px 24px;">
+        <div style="font-size:3rem;margin-bottom:14px;">🖊️</div>
+        <p style="font-weight:700;margin-bottom:8px;">Chọn trang & khoanh vùng</p>
+        <p class="text-muted" style="font-size:.85rem;line-height:1.6;">
+            Chọn chapter và thumbnail trang bên trái,<br>
+            sau đó <strong>kéo chuột trên ảnh</strong> để vẽ vùng cần giao việc.<br><br>
+            <i>Lưu ý: Bạn phải tải lên file ảnh (JPG/PNG), hệ thống không hỗ trợ khoanh vùng trên file PDF.</i>
+        </p>
+    </div>
+
+    <!-- Task assignment form (shown after region is drawn) -->
+    <div class="card task-form-panel" id="taskFormPanel">
+        <div class="card-header">
+            <div>
+                <p class="card-title">Giao Việc</p>
+                <p class="card-subtitle" id="formPageLabel">Trang —</p>
+            </div>
+            <button class="btn btn-ghost btn-sm btn-icon" onclick="clearDraw()" title="Xóa vùng">✕</button>
+        </div>
+
+        <!-- Region preview -->
+        <div class="region-preview-box" id="regionPreview">
+            <div class="region-indicator" id="regionIndicator" style="border-color:var(--red);"></div>
+            <div>
+                <div style="font-weight:700;font-size:.82rem;margin-bottom:2px;">Vùng đã chọn</div>
+                <div id="regionCoords" style="font-size:.75rem;color:var(--text-muted);">—</div>
+            </div>
+        </div>
+
+        <form id="taskAssignForm" onsubmit="submitTask(event)">
+            <input type="hidden" id="fieldPageId"    name="page_id"    value="">
+            <input type="hidden" id="fieldRegionX"   name="region_x"   value="">
+            <input type="hidden" id="fieldRegionY"   name="region_y"   value="">
+            <input type="hidden" id="fieldRegionW"   name="region_w"   value="">
+            <input type="hidden" id="fieldRegionH"   name="region_h"   value="">
+
+            <div class="form-group">
+                <label class="form-label">Trợ lý *</label>
+                <select name="assigned_to" id="fieldAssistant" class="form-control" required>
+                    <option value="">— Chọn trợ lý —</option>
+                    <?php foreach ($assistants as $a): ?>
+                    <option value="<?= $a['id'] ?>"><?= htmlspecialchars($a['username']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Loại công việc *</label>
+                <select name="task_type" id="fieldTaskType" class="form-control" required
+                        onchange="updateTypeColor(this.value)">
+                    <option value="">— Chọn loại —</option>
+                    <option value="background">🟢 Phông nền (Background)</option>
+                    <option value="shading">🔵 Đổ bóng (Shading)</option>
+                    <option value="effects">🟣 Hiệu ứng (Effects)</option>
+                    <option value="lettering">🟡 Chữ/Thoại (Lettering)</option>
+                    <option value="cleanup">🔴 Đi nét (Cleanup)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Mô tả chi tiết</label>
+                <textarea name="description" id="fieldDesc" class="form-control"
+                          rows="3" placeholder="Yêu cầu cụ thể cho trợ lý..."></textarea>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Deadline</label>
+                <input type="date" name="due_date" id="fieldDueDate" class="form-control"
+                       min="<?= date('Y-m-d') ?>">
+            </div>
+
+            <button type="submit" class="btn btn-primary" id="submitTaskBtn" style="width:100%;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                Giao Việc
+            </button>
+        </form>
+    </div>
+
+</div><!-- /.tasks-right -->
+</div><!-- /.tasks-layout -->
+
     <!-- ── Section 3: Task list ── -->
-    <div class="card">
+    <div class="card" style="margin-top: 24px;">
         <div class="card-header">
             <div>
                 <p class="card-title">Danh Sách Nhiệm Vụ Đã Giao</p>
@@ -701,17 +788,14 @@ $jsTaskTypeColors = json_encode([
                         <td>
                             <?php if ($task['file_result']): ?>
                             <?php
-                            // Phân tích file_result: JSON array hoặc path đơn
                             $raw = $task['file_result'];
                             $resFiles = [];
                             $decoded = json_decode($raw, true);
                             if (is_array($decoded)) {
-                                // Nhiều ảnh — JSON array (paths đã có assets/uploads/ prefix)
                                 foreach ($decoded as $p) {
                                     $resFiles[] = manuscriptUrl(normalizeFilePath($p));
                                 }
                             } else {
-                                // File đơn (backward compat)
                                 $resFiles[] = manuscriptUrl(normalizeFilePath($raw));
                             }
                             $firstUrl = htmlspecialchars($resFiles[0]);
@@ -719,21 +803,31 @@ $jsTaskTypeColors = json_encode([
                             $count = count($resFiles);
                             ?>
                             <?php if ($count === 1): ?>
-                            <img class="result-thumb"
-                                 src="<?= $firstUrl ?>"
-                                 alt="Kết quả"
-                                 onclick='openLightbox([<?= htmlspecialchars(json_encode($resFiles[0])) ?>], 0)'
-                                 title="Click để xem"
-                                 onerror="this.style.display='none'">
-                            <?php else: ?>
-                            <div style="display:flex;gap:4px;align-items:center;cursor:pointer;"
-                                 onclick="openLightboxArr(<?= $allUrlsJson ?>, 0)"
-                                 title="Click để xem <?= $count ?> ảnh">
+                            <div style="display:flex;flex-direction:column;gap:6px;align-items:center;">
                                 <img class="result-thumb"
                                      src="<?= $firstUrl ?>"
                                      alt="Kết quả"
+                                     onclick='openLightbox([<?= htmlspecialchars(json_encode($resFiles[0])) ?>], 0)'
+                                     title="Click để xem"
                                      onerror="this.style.display='none'">
-                                <span style="font-size:.7rem;font-weight:700;color:var(--text-muted);white-space:nowrap;">+<?= $count - 1 ?></span>
+                                <a href="<?= $firstUrl ?>" download class="badge badge-gray" style="text-decoration:none;display:inline-flex;align-items:center;gap:4px;" title="Tải về">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Tải ảnh
+                                </a>
+                            </div>
+                            <?php else: ?>
+                            <div style="display:flex;flex-direction:column;gap:6px;align-items:center;">
+                                <div style="display:flex;gap:4px;align-items:center;cursor:pointer;"
+                                     onclick="openLightboxArr(<?= $allUrlsJson ?>, 0)"
+                                     title="Click để xem <?= $count ?> ảnh">
+                                    <img class="result-thumb"
+                                         src="<?= $firstUrl ?>"
+                                         alt="Kết quả"
+                                         onerror="this.style.display='none'">
+                                    <span style="font-size:.7rem;font-weight:700;color:var(--text-muted);white-space:nowrap;">+<?= $count - 1 ?></span>
+                                </div>
+                                <button type="button" onclick='downloadMultipleFiles(<?= $allUrlsJson ?>)' class="badge badge-gray" style="border:none;cursor:pointer;display:inline-flex;align-items:center;gap:4px;" title="Tải về tất cả">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Tải (<?= $count ?>)
+                                </button>
                             </div>
                             <?php endif; ?>
                             <?php else: ?>
@@ -771,93 +865,6 @@ $jsTaskTypeColors = json_encode([
         </div>
         <?php endif; ?>
     </div>
-
-</div><!-- /.tasks-left -->
-
-<!-- ═══════════════════ RIGHT COLUMN (sticky form) ═══════════════════ -->
-<div class="tasks-right" id="tasksSidebar">
-
-    <!-- Waiting state -->
-    <div class="card" id="waitingState" style="text-align:center;padding:40px 24px;">
-        <div style="font-size:3rem;margin-bottom:14px;">🖊️</div>
-        <p style="font-weight:700;margin-bottom:8px;">Chọn trang & khoanh vùng</p>
-        <p class="text-muted" style="font-size:.85rem;line-height:1.6;">
-            Chọn chapter và thumbnail trang bên trái,<br>
-            sau đó <strong>kéo chuột trên ảnh</strong> để vẽ vùng cần giao việc.<br><br>
-            <i>Lưu ý: Bạn phải tải lên file ảnh (JPG/PNG), hệ thống không hỗ trợ khoanh vùng trên file PDF.</i>
-        </p>
-    </div>
-
-    <!-- Task assignment form (shown after region is drawn) -->
-    <div class="card task-form-panel" id="taskFormPanel">
-        <div class="card-header">
-            <div>
-                <p class="card-title">Giao Việc</p>
-                <p class="card-subtitle" id="formPageLabel">Trang —</p>
-            </div>
-            <button class="btn btn-ghost btn-sm btn-icon" onclick="clearDraw()" title="Xóa vùng">✕</button>
-        </div>
-
-        <!-- Region preview -->
-        <div class="region-preview-box" id="regionPreview">
-            <div class="region-indicator" id="regionIndicator" style="border-color:var(--red);"></div>
-            <div>
-                <div style="font-weight:700;font-size:.82rem;margin-bottom:2px;">Vùng đã chọn</div>
-                <div id="regionCoords" style="font-size:.75rem;color:var(--text-muted);">—</div>
-            </div>
-        </div>
-
-        <form id="taskAssignForm" onsubmit="submitTask(event)">
-            <input type="hidden" id="fieldPageId"    name="page_id"    value="">
-            <input type="hidden" id="fieldRegionX"   name="region_x"   value="">
-            <input type="hidden" id="fieldRegionY"   name="region_y"   value="">
-            <input type="hidden" id="fieldRegionW"   name="region_w"   value="">
-            <input type="hidden" id="fieldRegionH"   name="region_h"   value="">
-
-            <div class="form-group">
-                <label class="form-label">Trợ lý *</label>
-                <select name="assigned_to" id="fieldAssistant" class="form-control" required>
-                    <option value="">— Chọn trợ lý —</option>
-                    <?php foreach ($assistants as $a): ?>
-                    <option value="<?= $a['id'] ?>"><?= htmlspecialchars($a['username']) ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label class="form-label">Loại công việc *</label>
-                <select name="task_type" id="fieldTaskType" class="form-control" required
-                        onchange="updateTypeColor(this.value)">
-                    <option value="">— Chọn loại —</option>
-                    <option value="background">🟢 Phông nền (Background)</option>
-                    <option value="shading">🔵 Đổ bóng (Shading)</option>
-                    <option value="effects">🟣 Hiệu ứng (Effects)</option>
-                    <option value="lettering">🟡 Chữ/Thoại (Lettering)</option>
-                    <option value="cleanup">🔴 Đi nét (Cleanup)</option>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label class="form-label">Mô tả chi tiết</label>
-                <textarea name="description" id="fieldDesc" class="form-control"
-                          rows="3" placeholder="Yêu cầu cụ thể cho trợ lý..."></textarea>
-            </div>
-
-            <div class="form-group">
-                <label class="form-label">Deadline</label>
-                <input type="date" name="due_date" id="fieldDueDate" class="form-control"
-                       min="<?= date('Y-m-d') ?>">
-            </div>
-
-            <button type="submit" class="btn btn-primary" id="submitTaskBtn" style="width:100%;">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                Giao Việc
-            </button>
-        </form>
-    </div>
-
-</div><!-- /.tasks-right -->
-</div><!-- /.tasks-layout -->
 
 <!-- ── Review Modal ── -->
 <div class="mf-modal-bg" id="reviewModal">
@@ -1209,7 +1216,7 @@ function _lbShow() {
 }
 
 function _lbNav(dir) {
-    _lbIdx = (_lbIdx + dir + _lbUrls.length) % _lbUrls.length;
+   _lbIdx = (_lbIdx + dir + _lbUrls.length) % _lbUrls.length;
     _lbShow();
 }
 
@@ -1331,6 +1338,23 @@ document.addEventListener('DOMContentLoaded', () => {
 document.getElementById('reviewModal').addEventListener('click', function(e) {
     if (e.target === this) closeModal();
 });
+
+// Function to download multiple files at once
+function downloadMultipleFiles(urls) {
+    if (!urls || !urls.length) return;
+    
+    // Create a temporary link and trigger download for each url
+    urls.forEach((url, index) => {
+        setTimeout(() => {
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = url.split('/').pop() || ('download_' + index);
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }, index * 200); // 200ms delay between each download to prevent browser blocking
+    });
+}
 </script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>
