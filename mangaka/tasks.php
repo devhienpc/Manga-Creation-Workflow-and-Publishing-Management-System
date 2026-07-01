@@ -34,7 +34,8 @@ $selectedChapterId = (int)($_GET['chapter_id'] ?? 0);
 $selectedPageId    = (int)($_GET['page_id']    ?? 0);
 
 // Pages of selected chapter
-$pages = [];
+$pages    = [];
+$seriesId = 0;
 if ($selectedChapterId) {
     $stmt = $db->prepare(
         "SELECT id, page_number, original_file, composite_file, status
@@ -42,6 +43,12 @@ if ($selectedChapterId) {
     );
     $stmt->execute([$selectedChapterId]);
     $pages = $stmt->fetchAll();
+
+    // Get series_id for the selected chapter
+    $chStmt = $db->prepare("SELECT series_id FROM chapters WHERE id = ? LIMIT 1");
+    $chStmt->execute([$selectedChapterId]);
+    $chRow = $chStmt->fetch();
+    $seriesId = $chRow ? (int)$chRow['series_id'] : 0;
 }
 
 // Tasks list: filtered by chapter + optional status
@@ -239,11 +246,61 @@ $pageStatusLabels = [
 }
 .task-actions { display:flex; gap:6px; flex-wrap:wrap; }
 .result-thumb {
-    width: 48px; height: 32px; object-fit:cover;
+    width: 90px; height: 60px; object-fit:cover;
     border-radius:4px; border:1px solid var(--border);
     cursor:pointer; transition: transform .15s;
 }
-.result-thumb:hover { transform:scale(1.1); }
+.result-thumb:hover { transform:scale(1.5); z-index: 10; position: relative; }
+.result-file-badge {
+    display:inline-flex; align-items:center; gap:4px;
+    padding:4px 8px; border-radius:6px; font-size:.7rem; font-weight:700;
+    border:1px solid var(--border); cursor:pointer;
+    transition: background .15s, border-color .15s;
+}
+.result-file-badge:hover { border-color:rgba(230,57,70,.5); background:rgba(230,57,70,.08); }
+.result-file-badge.pdf  { color:#e53935; }
+.result-file-badge.zip  { color:#7c3aed; }
+.result-file-badge.img  { color:#10b981; }
+
+/* Thumbnail actions (upload, view) */
+.page-thumb-actions {
+    position: absolute; bottom: 6px; right: 6px; z-index:3;
+    display:flex; gap: 4px;
+    opacity:0; transition: opacity .2s;
+}
+.page-thumb:hover .page-thumb-actions { opacity:1; }
+.thumb-action-btn {
+    background: rgba(0,0,0,.7); backdrop-filter:blur(2px);
+    display:flex; align-items:center; justify-content:center;
+    width: 28px; height: 28px; border-radius:50%;
+    border: 1px solid rgba(255,255,255,.2); color: #fff;
+    cursor: pointer; transition: transform .15s, background .15s;
+}
+.thumb-action-btn:hover { transform: scale(1.1); background: rgba(0,0,0,.9); border-color: rgba(255,255,255,.4); }
+.thumb-action-btn svg { width: 14px; height: 14px; stroke: #fff; }
+
+/* PDF badge on thumbnail */
+.page-thumb-pdf {
+    position:absolute; inset:0;
+    display:flex; align-items:center; justify-content:center;
+    flex-direction:column; gap:4px;
+    font-size:2rem;
+}
+.page-thumb-pdf small { font-size:.6rem; color:var(--text-muted); font-weight:700; }
+
+/* Upload progress bar */
+.upload-progress {
+    position:absolute; bottom:0; left:0; right:0; height:3px;
+    background: rgba(255,255,255,.15);
+    border-radius:0 0 6px 6px;
+    overflow:hidden;
+    display:none;
+}
+.upload-progress-bar {
+    height:100%; width:0;
+    background: linear-gradient(90deg,#E63946,#ff6b6b);
+    transition: width .2s;
+}
 
 /* Filter bar */
 .filter-bar {
@@ -301,7 +358,6 @@ $pageStatusLabels = [
     position:fixed;inset:0;z-index:9999;
     background:rgba(0,0,0,.9);backdrop-filter:blur(8px);
     display:none;align-items:center;justify-content:center;
-    cursor:zoom-out;
 }
 #lightbox.open { display:flex; }
 #lightbox img { max-width:90vw; max-height:90vh; border-radius:8px; }
@@ -334,10 +390,19 @@ $pageStatusLabels = [
 <!-- Toast container -->
 <div class="mf-toast-wrap" id="toastWrap"></div>
 
-<!-- Lightbox -->
-<div id="lightbox" onclick="this.classList.remove('open')">
-    <img id="lightboxImg" src="" alt="Kết quả">
+<!-- Lightbox (image + PDF) -->
+<div id="lightbox" onclick="if(event.target===this)this.classList.remove('open')">
+    <button id="lbMkPrev" onclick="_lbNav(-1)" style="position:absolute;left:16px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.15);color:#fff;font-size:1.3rem;width:42px;height:42px;border-radius:50%;cursor:pointer;display:none;align-items:center;justify-content:center;">&#8249;</button>
+    <img id="lightboxImg" src="" alt="Kết quả" style="max-width:90vw;max-height:90vh;border-radius:8px;display:none;">
+    <iframe id="lightboxPdf" src="" style="width:90vw;height:90vh;border:none;border-radius:8px;background:#fff;display:none;"></iframe>
+    <button id="lbMkNext" onclick="_lbNav(1)" style="position:absolute;right:16px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.15);color:#fff;font-size:1.3rem;width:42px;height:42px;border-radius:50%;cursor:pointer;display:none;align-items:center;justify-content:center;">&#8250;</button>
+    <button onclick="document.getElementById('lightbox').classList.remove('open');"
+            style="position:absolute;top:16px;right:20px;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.2);color:#fff;font-size:1.1rem;width:36px;height:36px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
 </div>
+
+<!-- Hidden file input for page upload -->
+<input type="file" id="pageFileInput" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+       style="display:none;" onchange="handlePageFileSelect(this)">
 
 <?php
 // Encode data for JS
@@ -347,13 +412,14 @@ $jsPages = json_encode(array_map(fn($p) => [
     'file'       => !empty($p['original_file'])  ? BASE_URL . $p['original_file']  : null,
     'composite'  => !empty($p['composite_file']) ? BASE_URL . $p['composite_file'] : null,
     'status'     => $p['status'],
-], $pages));
+], $pages), JSON_INVALID_UTF8_SUBSTITUTE) ?: '[]';
+$jsSeriesId = $seriesId;
 
 // Tasks per page (for overlay rendering) - only for selected chapter
 $pageTasks = [];
 if ($selectedChapterId) {
     $stmt2 = $db->prepare(
-        "SELECT t.id, t.task_type, t.region_data, t.status, t.description,
+        "SELECT t.id, t.page_id, t.task_type, t.region_data, t.status, t.description,
                 u.username AS assistant_name
          FROM tasks t
          JOIN pages p ON p.id = t.page_id
@@ -365,7 +431,7 @@ if ($selectedChapterId) {
         $pageTasks[$t['page_id']][] = $t;
     }
 }
-$jsPageTasks = json_encode($pageTasks);
+$jsPageTasks = json_encode($pageTasks, JSON_INVALID_UTF8_SUBSTITUTE) ?: '{}';
 $jsTaskTypeColors = json_encode([
     'background' => '#10b981',
     'shading'    => '#3b82f6',
@@ -441,8 +507,18 @@ $jsTaskTypeColors = json_encode([
                  id="thumb-<?= $pg['id'] ?>"
                  onclick="selectPage(<?= $pg['id'] ?>)"
                  title="Trang <?= $pg['page_number'] ?>">
-                <?php if (!empty($pg['original_file'])): ?>
-                <img src="<?= htmlspecialchars(BASE_URL . $pg['original_file']) ?>" alt="Trang <?= $pg['page_number'] ?>" loading="lazy">
+                <?php
+                $isPdf = !empty($pg['original_file']) && strtolower(pathinfo($pg['original_file'], PATHINFO_EXTENSION)) === 'pdf';
+                ?>
+                <?php if (!empty($pg['original_file']) && !$isPdf): ?>
+                <img src="<?= htmlspecialchars(BASE_URL . $pg['original_file']) ?>" alt="Trang <?= $pg['page_number'] ?>" loading="lazy"
+                     onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+                <div style="display:none;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:1.5rem;">📃</div>
+                <?php elseif ($isPdf): ?>
+                <div class="page-thumb-pdf">
+                    📄
+                    <small>PDF</small>
+                </div>
                 <?php else: ?>
                 <div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:1.5rem;">📃</div>
                 <?php endif; ?>
@@ -451,6 +527,20 @@ $jsTaskTypeColors = json_encode([
                 <span class="page-thumb-taskcount"><?= $taskCnt ?></span>
                 <?php endif; ?>
                 <div class="page-thumb-label">Trang <?= $pg['page_number'] ?></div>
+                <!-- Action buttons -->
+                <div class="page-thumb-actions">
+                    <?php if (!empty($pg['original_file'])): ?>
+                    <div class="thumb-action-btn" onclick='event.stopPropagation();openLightbox(<?= htmlspecialchars(json_encode(BASE_URL . $pg['original_file'])) ?>)' title="Xem phóng to">
+                        <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    </div>
+                    <?php endif; ?>
+                    <div class="thumb-action-btn" onclick="event.stopPropagation();triggerPageUpload(<?= $pg['id'] ?>, <?= $pg['page_number'] ?>)" title="Tải lại ảnh / Đổi ảnh">
+                        <svg fill="none" stroke-width="2" viewBox="0 0 24 24"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+                    </div>
+                </div>
+                <div class="upload-progress" id="prog-<?= $pg['id'] ?>">
+                    <div class="upload-progress-bar" id="progbar-<?= $pg['id'] ?>"></div>
+                </div>
             </div>
             <?php endforeach; ?>
         </div>
@@ -473,7 +563,18 @@ $jsTaskTypeColors = json_encode([
         </div>
 
         <div class="canvas-wrapper" id="canvasWrapper">
-            <img id="pageImage" src="" alt="Trang truyện">
+            <!-- Image page -->
+            <img id="pageImage" src="" alt="Trang truyện" style="display:none;">
+            <!-- PDF page -->
+            <embed id="pagePdf" src="" type="application/pdf"
+                   style="display:none;width:100%;height:70vh;border:none;" />
+            <!-- No file placeholder -->
+            <div id="pageEmpty" style="display:flex;align-items:center;justify-content:center;min-height:220px;flex-direction:column;gap:12px;color:var(--text-muted);">
+                <div style="font-size:3rem;">🖼️</div>
+                <p style="font-size:.85rem;text-align:center;">Trang chưa có ảnh.<br>
+                    <a href="#" onclick="event.preventDefault();triggerPageUploadCurrent()" style="color:var(--red);">📤 Tải ảnh lên ngay (JPG/PNG để khoanh vùng)</a>
+                </p>
+            </div>
             <div class="canvas-overlay" id="canvasOverlay"
                  onmousedown="startDraw(event)"
                  onmousemove="moveDraw(event)"
@@ -487,8 +588,95 @@ $jsTaskTypeColors = json_encode([
         </div>
     </div>
 
+</div><!-- /.tasks-left -->
+
+<!-- ═══════════════════ RIGHT COLUMN (sticky form) ═══════════════════ -->
+<div class="tasks-right" id="tasksSidebar">
+
+    <!-- Waiting state -->
+    <div class="card" id="waitingState" style="text-align:center;padding:40px 24px;">
+        <div style="font-size:3rem;margin-bottom:14px;">🖊️</div>
+        <p style="font-weight:700;margin-bottom:8px;">Chọn trang & khoanh vùng</p>
+        <p class="text-muted" style="font-size:.85rem;line-height:1.6;">
+            Chọn chapter và thumbnail trang bên trái,<br>
+            sau đó <strong>kéo chuột trên ảnh</strong> để vẽ vùng cần giao việc.<br><br>
+            <i>Lưu ý: Bạn phải tải lên file ảnh (JPG/PNG), hệ thống không hỗ trợ khoanh vùng trên file PDF.</i>
+        </p>
+    </div>
+
+    <!-- Task assignment form (shown after region is drawn) -->
+    <div class="card task-form-panel" id="taskFormPanel">
+        <div class="card-header">
+            <div>
+                <p class="card-title">Giao Việc</p>
+                <p class="card-subtitle" id="formPageLabel">Trang —</p>
+            </div>
+            <button class="btn btn-ghost btn-sm btn-icon" onclick="clearDraw()" title="Xóa vùng">✕</button>
+        </div>
+
+        <!-- Region preview -->
+        <div class="region-preview-box" id="regionPreview">
+            <div class="region-indicator" id="regionIndicator" style="border-color:var(--red);"></div>
+            <div>
+                <div style="font-weight:700;font-size:.82rem;margin-bottom:2px;">Vùng đã chọn</div>
+                <div id="regionCoords" style="font-size:.75rem;color:var(--text-muted);">—</div>
+            </div>
+        </div>
+
+        <form id="taskAssignForm" onsubmit="submitTask(event)">
+            <input type="hidden" id="fieldPageId"    name="page_id"    value="">
+            <input type="hidden" id="fieldRegionX"   name="region_x"   value="">
+            <input type="hidden" id="fieldRegionY"   name="region_y"   value="">
+            <input type="hidden" id="fieldRegionW"   name="region_w"   value="">
+            <input type="hidden" id="fieldRegionH"   name="region_h"   value="">
+
+            <div class="form-group">
+                <label class="form-label">Trợ lý *</label>
+                <select name="assigned_to" id="fieldAssistant" class="form-control" required>
+                    <option value="">— Chọn trợ lý —</option>
+                    <?php foreach ($assistants as $a): ?>
+                    <option value="<?= $a['id'] ?>"><?= htmlspecialchars($a['username']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Loại công việc *</label>
+                <select name="task_type" id="fieldTaskType" class="form-control" required
+                        onchange="updateTypeColor(this.value)">
+                    <option value="">— Chọn loại —</option>
+                    <option value="background">🟢 Phông nền (Background)</option>
+                    <option value="shading">🔵 Đổ bóng (Shading)</option>
+                    <option value="effects">🟣 Hiệu ứng (Effects)</option>
+                    <option value="lettering">🟡 Chữ/Thoại (Lettering)</option>
+                    <option value="cleanup">🔴 Đi nét (Cleanup)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Mô tả chi tiết</label>
+                <textarea name="description" id="fieldDesc" class="form-control"
+                          rows="3" placeholder="Yêu cầu cụ thể cho trợ lý..."></textarea>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Deadline</label>
+                <input type="date" name="due_date" id="fieldDueDate" class="form-control"
+                       min="<?= date('Y-m-d') ?>">
+            </div>
+
+            <button type="submit" class="btn btn-primary" id="submitTaskBtn" style="width:100%;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                Giao Việc
+            </button>
+        </form>
+    </div>
+
+</div><!-- /.tasks-right -->
+</div><!-- /.tasks-layout -->
+
     <!-- ── Section 3: Task list ── -->
-    <div class="card">
+    <div class="card" style="margin-top: 24px;">
         <div class="card-header">
             <div>
                 <p class="card-title">Danh Sách Nhiệm Vụ Đã Giao</p>
@@ -596,14 +784,52 @@ $jsTaskTypeColors = json_encode([
                         </td>
                         <!-- Status -->
                         <td><span class="badge <?= $stClass ?>"><?= $stLabel ?></span></td>
-                        <!-- Result file -->
+                        <!-- Result file (ảnh đơn hoặc JSON array nhiều ảnh) -->
                         <td>
                             <?php if ($task['file_result']): ?>
-                            <img class="result-thumb"
-                                 src="<?= htmlspecialchars(BASE_URL . $task['file_result']) ?>"
-                                 alt="Kết quả"
-                                 onclick="openLightbox('<?= htmlspecialchars(BASE_URL . $task['file_result']) ?>')"
-                                 title="Click để xem">
+                            <?php
+                            $raw = $task['file_result'];
+                            $resFiles = [];
+                            $decoded = json_decode($raw, true);
+                            if (is_array($decoded)) {
+                                foreach ($decoded as $p) {
+                                    $resFiles[] = manuscriptUrl(normalizeFilePath($p));
+                                }
+                            } else {
+                                $resFiles[] = manuscriptUrl(normalizeFilePath($raw));
+                            }
+                            $firstUrl = htmlspecialchars($resFiles[0]);
+                            $allUrlsJson = htmlspecialchars(json_encode($resFiles));
+                            $count = count($resFiles);
+                            ?>
+                            <?php if ($count === 1): ?>
+                            <div style="display:flex;flex-direction:column;gap:6px;align-items:center;">
+                                <img class="result-thumb"
+                                     src="<?= $firstUrl ?>"
+                                     alt="Kết quả"
+                                     onclick='openLightbox([<?= htmlspecialchars(json_encode($resFiles[0])) ?>], 0)'
+                                     title="Click để xem"
+                                     onerror="this.style.display='none'">
+                                <a href="<?= $firstUrl ?>" download class="badge badge-gray" style="text-decoration:none;display:inline-flex;align-items:center;gap:4px;" title="Tải về">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Tải ảnh
+                                </a>
+                            </div>
+                            <?php else: ?>
+                            <div style="display:flex;flex-direction:column;gap:6px;align-items:center;">
+                                <div style="display:flex;gap:4px;align-items:center;cursor:pointer;"
+                                     onclick="openLightboxArr(<?= $allUrlsJson ?>, 0)"
+                                     title="Click để xem <?= $count ?> ảnh">
+                                    <img class="result-thumb"
+                                         src="<?= $firstUrl ?>"
+                                         alt="Kết quả"
+                                         onerror="this.style.display='none'">
+                                    <span style="font-size:.7rem;font-weight:700;color:var(--text-muted);white-space:nowrap;">+<?= $count - 1 ?></span>
+                                </div>
+                                <button type="button" onclick='downloadMultipleFiles(<?= $allUrlsJson ?>)' class="badge badge-gray" style="border:none;cursor:pointer;display:inline-flex;align-items:center;gap:4px;" title="Tải về tất cả">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Tải (<?= $count ?>)
+                                </button>
+                            </div>
+                            <?php endif; ?>
                             <?php else: ?>
                             <span class="text-muted" style="font-size:.8rem;">Chưa có</span>
                             <?php endif; ?>
@@ -639,92 +865,6 @@ $jsTaskTypeColors = json_encode([
         </div>
         <?php endif; ?>
     </div>
-
-</div><!-- /.tasks-left -->
-
-<!-- ═══════════════════ RIGHT COLUMN (sticky form) ═══════════════════ -->
-<div class="tasks-right" id="tasksSidebar">
-
-    <!-- Waiting state -->
-    <div class="card" id="waitingState" style="text-align:center;padding:40px 24px;">
-        <div style="font-size:3rem;margin-bottom:14px;">🖊️</div>
-        <p style="font-weight:700;margin-bottom:8px;">Chọn trang & khoanh vùng</p>
-        <p class="text-muted" style="font-size:.85rem;line-height:1.6;">
-            Chọn chapter và thumbnail trang bên trái,<br>
-            sau đó kéo chuột trên ảnh để vẽ vùng cần giao việc.
-        </p>
-    </div>
-
-    <!-- Task assignment form (shown after region is drawn) -->
-    <div class="card task-form-panel" id="taskFormPanel">
-        <div class="card-header">
-            <div>
-                <p class="card-title">Giao Việc</p>
-                <p class="card-subtitle" id="formPageLabel">Trang —</p>
-            </div>
-            <button class="btn btn-ghost btn-sm btn-icon" onclick="clearDraw()" title="Xóa vùng">✕</button>
-        </div>
-
-        <!-- Region preview -->
-        <div class="region-preview-box" id="regionPreview">
-            <div class="region-indicator" id="regionIndicator" style="border-color:var(--red);"></div>
-            <div>
-                <div style="font-weight:700;font-size:.82rem;margin-bottom:2px;">Vùng đã chọn</div>
-                <div id="regionCoords" style="font-size:.75rem;color:var(--text-muted);">—</div>
-            </div>
-        </div>
-
-        <form id="taskAssignForm" onsubmit="submitTask(event)">
-            <input type="hidden" id="fieldPageId"    name="page_id"    value="">
-            <input type="hidden" id="fieldRegionX"   name="region_x"   value="">
-            <input type="hidden" id="fieldRegionY"   name="region_y"   value="">
-            <input type="hidden" id="fieldRegionW"   name="region_w"   value="">
-            <input type="hidden" id="fieldRegionH"   name="region_h"   value="">
-
-            <div class="form-group">
-                <label class="form-label">Trợ lý *</label>
-                <select name="assigned_to" id="fieldAssistant" class="form-control" required>
-                    <option value="">— Chọn trợ lý —</option>
-                    <?php foreach ($assistants as $a): ?>
-                    <option value="<?= $a['id'] ?>"><?= htmlspecialchars($a['username']) ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label class="form-label">Loại công việc *</label>
-                <select name="task_type" id="fieldTaskType" class="form-control" required
-                        onchange="updateTypeColor(this.value)">
-                    <option value="">— Chọn loại —</option>
-                    <option value="background">🟢 Phông nền (Background)</option>
-                    <option value="shading">🔵 Đổ bóng (Shading)</option>
-                    <option value="effects">🟣 Hiệu ứng (Effects)</option>
-                    <option value="lettering">🟡 Chữ/Thoại (Lettering)</option>
-                    <option value="cleanup">🔴 Đi nét (Cleanup)</option>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label class="form-label">Mô tả chi tiết</label>
-                <textarea name="description" id="fieldDesc" class="form-control"
-                          rows="3" placeholder="Yêu cầu cụ thể cho trợ lý..."></textarea>
-            </div>
-
-            <div class="form-group">
-                <label class="form-label">Deadline</label>
-                <input type="date" name="due_date" id="fieldDueDate" class="form-control"
-                       min="<?= date('Y-m-d') ?>">
-            </div>
-
-            <button type="submit" class="btn btn-primary" id="submitTaskBtn" style="width:100%;">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                Giao Việc
-            </button>
-        </form>
-    </div>
-
-</div><!-- /.tasks-right -->
-</div><!-- /.tasks-layout -->
 
 <!-- ── Review Modal ── -->
 <div class="mf-modal-bg" id="reviewModal">
@@ -763,6 +903,7 @@ const PAGE_TASKS = <?= $jsPageTasks ?>;
 const TYPE_COLORS= <?= $jsTaskTypeColors ?>;
 const BASE       = <?= json_encode(BASE_URL) ?>;
 const CHAPTER_ID = <?= $selectedChapterId ?: 0 ?>;
+const SERIES_ID  = <?= $jsSeriesId ?? 0 ?>;
 
 /* ── State ── */
 let selectedPageId = <?= $selectedPageId ?: 0 ?>;
@@ -786,14 +927,31 @@ function selectPage(pid) {
     document.getElementById('formPageLabel').textContent = 'Trang ' + pg.num;
     document.getElementById('fieldPageId').value = pid;
 
-    // Set image
-    const img = document.getElementById('pageImage');
+    // Set image / PDF in canvas
+    const img    = document.getElementById('pageImage');
+    const pdf    = document.getElementById('pagePdf');
+    const empty  = document.getElementById('pageEmpty');
+    const overlay= document.getElementById('canvasOverlay');
+
+    img.style.display   = 'none';
+    pdf.style.display   = 'none';
+    empty.style.display = 'none';
+
     if (pg.file) {
-        img.src = pg.file;
-        img.style.display = 'block';
+        const ext = pg.file.split('.').pop().toLowerCase();
+        if (ext === 'pdf') {
+            pdf.src = pg.file;
+            pdf.style.display = 'block';
+            // PDF - keep overlay on top for region drawing
+            overlay.style.pointerEvents = 'all';
+        } else {
+            img.src = pg.file;
+            img.style.display = 'block';
+            overlay.style.pointerEvents = 'all';
+        }
     } else {
-        img.src = '';
-        img.style.display = 'none';
+        empty.style.display = 'flex';
+        overlay.style.pointerEvents = 'none';
     }
 
     // Render existing region boxes
@@ -816,8 +974,13 @@ function renderRegionBoxes(pid) {
     container.innerHTML = '';
     const tasks = PAGE_TASKS[pid] || [];
     tasks.forEach(t => {
-        const r = t.region_data;
-        if (!r) return;
+        if (!t.region_data || t.region_data === 'null') return;
+        let r;
+        try {
+            r = typeof t.region_data === 'string' ? JSON.parse(t.region_data) : t.region_data;
+        } catch(e) { return; }
+        if (!r || !r.w) return;
+
         const color = TYPE_COLORS[t.task_type] || '#888';
         const box = document.createElement('div');
         box.className = 'region-box';
@@ -1009,10 +1172,148 @@ async function confirmReview() {
     }
 }
 
-/* ── Lightbox ── */
-function openLightbox(src) {
-    document.getElementById('lightboxImg').src = src;
-    document.getElementById('lightbox').classList.add('open');
+/* ── Lightbox (image + PDF + gallery) ── */
+let _lbUrls = [], _lbIdx = 0;
+
+function openLightboxArr(urls, idx) {
+    _lbUrls = Array.isArray(urls) ? urls : [urls];
+    _lbIdx  = idx || 0;
+    _lbShow();
+}
+
+function openLightbox(src, type) {
+    // Backward compat: src có thể là array hoặc string
+    if (Array.isArray(src)) {
+        openLightboxArr(src, type || 0);
+        return;
+    }
+    _lbUrls = [src];
+    _lbIdx  = 0;
+    _lbShow();
+}
+
+function _lbShow() {
+    const lb  = document.getElementById('lightbox');
+    const img = document.getElementById('lightboxImg');
+    const pdf = document.getElementById('lightboxPdf');
+    const prev = document.getElementById('lbMkPrev');
+    const next = document.getElementById('lbMkNext');
+    img.style.display = 'none'; img.src = '';
+    pdf.style.display = 'none'; pdf.src = '';
+
+    const src = _lbUrls[_lbIdx] || '';
+    const ext = src.split('.').pop().toLowerCase();
+    if (ext === 'pdf') {
+        pdf.src = src; pdf.style.display = 'block';
+    } else {
+        img.src = src; img.style.display = 'block';
+    }
+
+    const multi = _lbUrls.length > 1;
+    if (prev) prev.style.display = multi ? 'flex' : 'none';
+    if (next) next.style.display = multi ? 'flex' : 'none';
+    lb.classList.add('open');
+}
+
+function _lbNav(dir) {
+   _lbIdx = (_lbIdx + dir + _lbUrls.length) % _lbUrls.length;
+    _lbShow();
+}
+
+/* ── Page Upload ── */
+let _uploadPageId = null;
+
+function triggerPageUpload(pageId, pageNum) {
+    _uploadPageId = pageId;
+    const inp = document.getElementById('pageFileInput');
+    inp.title = 'Tải ảnh cho Trang ' + pageNum;
+    inp.click();
+}
+
+function triggerPageUploadCurrent() {
+    if (!selectedPageId) { showToast('Chọn trang trước!', 'error'); return; }
+    const pg = PAGES.find(p => p.id == selectedPageId);
+    triggerPageUpload(selectedPageId, pg ? pg.num : selectedPageId);
+}
+
+function handlePageFileSelect(input) {
+    if (!input.files || !input.files[0]) return;
+    const file = input.files[0];
+    uploadPageFile(_uploadPageId, file);
+    input.value = ''; // reset
+}
+
+async function uploadPageFile(pageId, file) {
+    const MAX_SIZE = 20 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+        showToast('File quá lớn! Tối đa 20MB.', 'error'); return;
+    }
+
+    // Show progress bar
+    const prog    = document.getElementById('prog-' + pageId);
+    const progBar = document.getElementById('progbar-' + pageId);
+    if (prog) { prog.style.display = 'block'; progBar.style.width = '10%'; }
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_type', 'page');
+    formData.append('page_id', pageId);
+    // series_id and chapter_id from JS constants
+    formData.append('series_id',  SERIES_ID);
+    formData.append('chapter_id', CHAPTER_ID);
+    try {
+        if (progBar) progBar.style.width = '40%';
+        const res  = await fetch(BASE + 'api/upload.php', { method: 'POST', body: formData });
+        if (progBar) progBar.style.width = '80%';
+        const json = await res.json();
+
+        if (json.success) {
+            if (progBar) progBar.style.width = '100%';
+            showToast('Tải ảnh thành công!', 'success');
+
+            // Update PAGES data in memory
+            const pg = PAGES.find(p => p.id == pageId);
+            if (pg) pg.file = json.data.url;
+
+            // Update thumbnail
+            updateThumbUI(pageId, json.data.url, json.data.mime);
+
+            // If this is the currently selected page, refresh canvas
+            if (selectedPageId == pageId) selectPage(pageId);
+
+        } else {
+            showToast(json.message || 'Lỗi upload!', 'error');
+        }
+    } catch(err) {
+        showToast('Lỗi kết nối: ' + err.message, 'error');
+    } finally {
+        setTimeout(() => {
+            if (prog) { prog.style.display = 'none'; if(progBar) progBar.style.width='0'; }
+        }, 800);
+    }
+}
+
+function updateThumbUI(pageId, url, mime) {
+    const thumb = document.getElementById('thumb-' + pageId);
+    if (!thumb) return;
+    // Remove old content (img / placeholder div / pdf div) - keep overlay/status/label/progress
+    const toRemove = thumb.querySelectorAll('img, .page-thumb-pdf, [style*="align-items"]');
+    toRemove.forEach(el => el.remove());
+    // Insert new element at the start
+    if (mime === 'application/pdf') {
+        const div = document.createElement('div');
+        div.className = 'page-thumb-pdf';
+        div.innerHTML = '📄<small>PDF</small>';
+        thumb.insertBefore(div, thumb.firstChild);
+    } else {
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = 'Trang';
+        img.loading = 'lazy';
+        img.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;';
+        img.onerror = () => { img.style.display='none'; };
+        thumb.insertBefore(img, thumb.firstChild);
+    }
 }
 
 /* ── Toast ── */
@@ -1037,6 +1338,23 @@ document.addEventListener('DOMContentLoaded', () => {
 document.getElementById('reviewModal').addEventListener('click', function(e) {
     if (e.target === this) closeModal();
 });
+
+// Function to download multiple files at once
+function downloadMultipleFiles(urls) {
+    if (!urls || !urls.length) return;
+    
+    // Create a temporary link and trigger download for each url
+    urls.forEach((url, index) => {
+        setTimeout(() => {
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = url.split('/').pop() || ('download_' + index);
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }, index * 200); // 200ms delay between each download to prevent browser blocking
+    });
+}
 </script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

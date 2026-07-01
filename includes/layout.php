@@ -38,7 +38,7 @@ try {
     $stmt = getDB()->prepare("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0");
     $stmt->execute([$currentUser['id']]);
     $unreadCount = (int) $stmt->fetchColumn();
-} catch (\Throwable $e) {}
+} catch (\Throwable $e) {error_log("Lỗi đếm thông báo (layout.php): " . $e->getMessage());}
 ?>
 <!DOCTYPE html>
 <html lang="vi">
@@ -50,6 +50,7 @@ try {
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Bangers&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="<?= BASE_URL ?>assets/css/main.css">
     <?php if (isset($extraCss)): ?>
         <link rel="stylesheet" href="<?= BASE_URL . htmlspecialchars($extraCss) ?>">

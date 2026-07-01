@@ -243,7 +243,7 @@ $jsHistoryMap = json_encode($seriesHistoryMap);
                     <tbody>
                         <?php foreach ($publishingSeries as $s):
                             $isMySeries = ($s['mangaka_id'] == $uid);
-                            $coverUrl = $s['cover_image'] ? BASE_URL . 'assets/uploads/' . $s['cover_image'] : null;
+                            $coverUrl = coverImageUrl($s['cover_image']);
                             
                             // Xác định class cho thứ hạng top
                             $rankClass = '';

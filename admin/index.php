@@ -633,7 +633,7 @@ $roleDisplayNames = [
                             <tr>
                                 <td style="padding:14px 18px;">
                                     <?php if (!empty($s['cover_image'])): ?>
-                                        <img src="<?= BASE_URL . htmlspecialchars($s['cover_image']) ?>" alt="cover" style="width:40px; height:52px; border-radius:6px; object-fit:cover; border: 1px solid var(--border);">
+                                        <img src="<?= htmlspecialchars(coverImageUrl($s['cover_image'])) ?>" alt="cover" style="width:40px; height:52px; border-radius:6px; object-fit:cover; border: 1px solid var(--border);">
                                     <?php else: ?>
                                         <div style="width:40px; height:52px; border-radius:6px; background:var(--bg-body); border: 1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:0.7rem; color:var(--text-muted);">No cover</div>
                                     <?php endif; ?>

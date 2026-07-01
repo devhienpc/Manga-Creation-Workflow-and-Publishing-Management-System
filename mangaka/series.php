@@ -141,12 +141,6 @@ if ($action === 'create_chapter' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $insCh->execute([$seriesId, $chapterNumber, $chapterTitle, $deadline]);
                 $chapterId = (int) $db->lastInsertId();
 
-                // Auto-create 3 placeholder pages for this chapter to enable immediate workflow testing
-                $insPg = $db->prepare("INSERT INTO pages (chapter_id, page_number, original_file, composite_file, status) VALUES (?, ?, NULL, NULL, 'pending')");
-                for ($p = 1; $p <= 3; $p++) {
-                    $insPg->execute([$chapterId, $p]);
-                }
-
                 $db->commit();
                 $flashMsg  = "Đã tạo thành công Chương $chapterNumber: $chapterTitle (kèm 3 trang vẽ nháp).";
                 $flashType = 'success';
@@ -175,17 +169,13 @@ if ($action === 'submit_manuscript' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $flashMsg  = 'Vui lòng chọn chương tương ứng cho bản thảo.';
         $flashType = 'error';
     } else {
-        $up = uploadFile(
-            'manuscript_file',
-            UPLOAD_PATH . 'manuscripts',
-            ['application/pdf', 'application/zip', 'application/x-zip-compressed'],
-            50_000_000
-        );
-        if (!$up['ok']) {
-            $flashMsg  = 'Lỗi upload bản thảo: ' . $up['err'];
+        $jsonStr = $_POST['manuscript_json'] ?? '';
+        $files = json_decode($jsonStr, true);
+        if (!is_array($files) || empty($files)) {
+            $flashMsg  = 'Lỗi upload bản thảo: Không có file ảnh nào được tải lên.';
             $flashType = 'error';
         } else {
-            $filePath = 'manuscripts/' . $up['path'];
+            $filePath = $jsonStr; // Chuỗi JSON chứa mảng các path
 
             // Get latest version number for this series+chapter
             $vStmt = $db->prepare(
@@ -212,6 +202,24 @@ if ($action === 'submit_manuscript' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]);
                 $manuscriptId = (int) $db->lastInsertId();
 
+                // Xoá trang thừa nếu bản thảo mới có ÍT trang hơn bản cũ
+                // (ví dụ: bản cũ có 5 trang, bản mới chỉ upload 3 ảnh → xoá trang 4, 5)
+                $newPageCount = count($files);
+                $db->prepare(
+                    "DELETE FROM pages WHERE chapter_id = ? AND page_number > ?"
+                )->execute([$chapterId, $newPageCount]);
+
+                // Upsert từng trang: nếu đã có page_number đó thì cập nhật ảnh,
+                // nếu chưa có thì insert mới
+                $upsertPg = $db->prepare(
+                    "INSERT INTO pages (chapter_id, page_number, original_file, composite_file, status)
+                     VALUES (?, ?, ?, NULL, 'pending')
+                     ON DUPLICATE KEY UPDATE original_file = VALUES(original_file)"
+                );
+                foreach ($files as $index => $path) {
+                    $upsertPg->execute([$chapterId, $index + 1, $path]);
+                }
+
                 // Insert submission to board
                 $sStmt = $db->prepare(
                     "INSERT INTO submissions (series_id, manuscript_id, submitted_by, status, board_notes, submitted_at)
@@ -225,11 +233,32 @@ if ($action === 'submit_manuscript' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 )->execute([$seriesId]);
 
                 $db->commit();
+
+                // Lấy tên Bộ truyện để đưa vào nội dung thông báo
+                $seriesTitle = '';
+                $stSeries = $db->prepare("SELECT title FROM series WHERE id = ?");
+                $stSeries->execute([$seriesId]);
+                $stSeries = $stSeries->fetch();
+                if ($stSeries) $seriesTitle = $stSeries['title'];
+
+                // Gửi thông báo cho TẤT CẢ Editor và Board
+                $editors = $db->prepare(
+                    "SELECT id FROM users WHERE role IN ('editor', 'board') AND is_active = 1"
+                );
+                $editors->execute();
+                $notifStmt = $db->prepare(
+                    "INSERT INTO notifications (user_id, type, message, link)
+                     VALUES (?, 'manuscript_submitted', ?, 'editor/manuscripts.php')"
+                );
+                $notifMsg = "📄 Họa sĩ vừa nộp bản thảo mới cho bộ truyện \"" . $seriesTitle . "\". Vui lòng vào mục Duyệt Bản Thảo để xem xét.";
+                foreach ($editors->fetchAll() as $ed) {
+                    $notifStmt->execute([$ed['id'], $notifMsg]);
+                }
+
                 $flashMsg = 'Bản thảo đã được nộp thành công! Ban biên tập sẽ xem xét sớm.';
             } catch (\Throwable $e) {
                 $db->rollBack();
-                // Remove uploaded file if DB failed
-                @unlink(UPLOAD_PATH . 'manuscripts/' . $up['path']);
+                // Clean up files is skipped here since they are uploaded via API asynchronously
                 $flashMsg  = 'Lỗi khi lưu bản thảo: ' . $e->getMessage();
                 $flashType = 'error';
             }
@@ -429,9 +458,7 @@ function sortUrl(string $field): string {
             <?php foreach ($series as $s):
                 [$stLabel, $stClass, $stIcon] = $statusConfig[$s['status']] ?? ['?', 'badge-gray', '?'];
                 $isSelected = ($detailId === (int)$s['id']);
-                $coverUrl   = $s['cover_image']
-                    ? BASE_URL . 'assets/uploads/' . $s['cover_image']
-                    : null;
+                $coverUrl   = coverImageUrl($s['cover_image']);
             ?>
             <div class="card" style="padding:16px;cursor:pointer;<?= $isSelected ? 'border-color:var(--red);box-shadow:0 0 0 1px var(--red)' : '' ?>"
                  onclick="window.location='?<?= http_build_query(array_merge($_GET, ['detail' => $s['id']])) ?>'">
@@ -494,9 +521,7 @@ function sortUrl(string $field): string {
             <!-- Header with close -->
             <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:20px">
                 <?php
-                $coverUrl = $detailSeries['cover_image']
-                    ? BASE_URL . 'assets/uploads/' . $detailSeries['cover_image']
-                    : null;
+                $coverUrl = coverImageUrl($detailSeries['cover_image']);
                 [$stLabel, $stClass] = $statusConfig[$detailSeries['status']] ?? ['?', 'badge-gray'];
                 ?>
                 <div style="width:70px;height:100px;border-radius:8px;overflow:hidden;flex-shrink:0;background:var(--bg-input);border:1px solid var(--border)">
@@ -613,6 +638,10 @@ function sortUrl(string $field): string {
                    class="btn btn-secondary btn-sm" style="flex:1">
                     🎨 Giao task trợ lý
                 </a>
+                <a href="<?= BASE_URL ?>mangaka/manuscripts.php?filter_series=<?= $detailSeries['id'] ?>"
+                   class="btn btn-secondary btn-sm" style="flex:1">
+                    👁 Xem ghi chú
+                </a>
             </div>
         </div>
     </div>
@@ -703,14 +732,15 @@ function sortUrl(string $field): string {
             <button onclick="document.getElementById('createChapterModal').classList.remove('open')" class="modal-close">×</button>
         </div>
 
-        <form method="POST">
+        <form method="POST" onsubmit="return validateCreateChapter(this)">
             <input type="hidden" name="action" value="create_chapter">
             <input type="hidden" name="series_id" id="chapterModalSeriesId" value="">
 
             <div class="modal-body">
                 <div class="form-group">
                     <label class="form-label">Số chương *</label>
-                    <input type="number" name="chapter_number" class="form-control" min="1" required placeholder="Ví dụ: 1, 2, 3...">
+                    <input type="number" name="chapter_number" class="form-control" min="1" required placeholder="Ví dụ: 1, 2, 3..." oninput="checkChapterNumber(this.value)">
+                    <div id="chapterError" class="text-xs" style="color:var(--red);margin-top:6px;display:none;"></div>
                 </div>
 
                 <div class="form-group">
@@ -727,8 +757,9 @@ function sortUrl(string $field): string {
             <div class="modal-footer">
                 <button type="button" onclick="document.getElementById('createChapterModal').classList.remove('open')"
                         class="btn btn-secondary">Hủy</button>
-                <button type="submit" class="btn btn-primary">
-                    💾 Tạo chương
+                <button type="submit" class="btn btn-primary" id="createChapterSubmitBtn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                    Tạo chương
                 </button>
             </div>
         </form>
@@ -745,8 +776,9 @@ function sortUrl(string $field): string {
             <button onclick="document.getElementById('submitModal').classList.remove('open')" class="modal-close">×</button>
         </div>
 
-        <form method="POST" enctype="multipart/form-data">
+        <form method="POST" id="submitManuscriptForm" onsubmit="handleBulkUploadSubmit(event)">
             <input type="hidden" name="action" value="submit_manuscript">
+            <input type="hidden" name="manuscript_json" id="manuscriptJson" value="">
 
             <div class="modal-body">
                 <div class="form-group">
@@ -777,9 +809,15 @@ function sortUrl(string $field): string {
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label">File bản thảo (PDF/ZIP, ≤50MB) <span style="color:var(--red)">*</span></label>
-                    <input type="file" name="manuscript_file" accept=".pdf,.zip" class="form-control" required>
-                    <p class="text-xs text-muted" style="margin-top:6px">Chấp nhận file PDF hoặc ZIP chứa ảnh trang truyện.</p>
+                    <label class="form-label">File bản thảo (Tải lên hàng loạt ảnh) <span style="color:var(--red)">*</span></label>
+                    <input type="file" id="bulkUploadInput" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" class="form-control" multiple required>
+                    <p class="text-xs text-muted" style="margin-top:6px">Chọn nhiều file ảnh (JPG, PNG) của chương truyện cùng lúc.</p>
+                    <div id="bulkUploadProgress" style="display:none; margin-top:8px;">
+                        <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:4px;" id="bulkUploadText">Đang tải lên 0 / 0...</div>
+                        <div style="width:100%; height:4px; background:var(--bg-input); border-radius:2px; overflow:hidden;">
+                            <div id="bulkUploadBar" style="width:0%; height:100%; background:var(--red); transition:width 0.2s;"></div>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="form-group" style="margin-bottom:0">
@@ -791,8 +829,8 @@ function sortUrl(string $field): string {
 
             <div class="modal-footer">
                 <button type="button" onclick="document.getElementById('submitModal').classList.remove('open')"
-                        class="btn btn-secondary">Hủy</button>
-                <button type="submit" class="btn btn-primary">
+                        class="btn btn-secondary" id="submitCancelBtn">Hủy</button>
+                <button type="submit" class="btn btn-primary" id="submitManuscriptBtn">
                     📤 Nộp bản thảo
                 </button>
             </div>
@@ -884,10 +922,111 @@ function sortUrl(string $field): string {
 </style>
 
 <script>
+async function handleBulkUploadSubmit(event) {
+    event.preventDefault();
+    const form = document.getElementById('submitManuscriptForm');
+    const fileInput = document.getElementById('bulkUploadInput');
+    const seriesId = document.getElementById('submitSeriesSelect').value;
+    const chapterId = document.getElementById('submitChapterSelect').value;
+
+    if (!fileInput.files || fileInput.files.length === 0) {
+        alert('Vui lòng chọn ít nhất 1 file ảnh.');
+        return;
+    }
+
+    const files = Array.from(fileInput.files);
+    
+    // Sắp xếp file theo tên (01.jpg, 02.jpg...)
+    files.sort((a, b) => a.name.localeCompare(b.name, undefined, {numeric: true, sensitivity: 'base'}));
+
+    const btn = document.getElementById('submitManuscriptBtn');
+    const cancelBtn = document.getElementById('submitCancelBtn');
+    btn.disabled = true;
+    cancelBtn.disabled = true;
+    btn.textContent = 'Đang tải lên...';
+    
+    const progressWrap = document.getElementById('bulkUploadProgress');
+    const progressText = document.getElementById('bulkUploadText');
+    const progressBar = document.getElementById('bulkUploadBar');
+    progressWrap.style.display = 'block';
+
+    let uploadedPaths = [];
+
+    for (let i = 0; i < files.length; i++) {
+        progressText.textContent = `Đang tải lên ảnh ${i + 1} / ${files.length}...`;
+        progressBar.style.width = Math.round(((i) / files.length) * 100) + '%';
+        
+        const fd = new FormData();
+        fd.append('file', files[i]);
+        fd.append('upload_type', 'manuscript');
+        fd.append('series_id', seriesId);
+        fd.append('chapter_id', chapterId);
+        
+        try {
+            const res = await fetch('<?= BASE_URL ?>api/upload.php', { method: 'POST', body: fd });
+            const json = await res.json();
+            if (json.success) {
+                uploadedPaths.push(json.data.path);
+            } else {
+                alert('Lỗi tải file ' + files[i].name + ': ' + json.message);
+                btn.disabled = false; cancelBtn.disabled = false;
+                btn.textContent = '📤 Nộp bản thảo';
+                return;
+            }
+        } catch (e) {
+            alert('Lỗi kết nối khi tải file ' + files[i].name);
+            btn.disabled = false; cancelBtn.disabled = false;
+            btn.textContent = '📤 Nộp bản thảo';
+            return;
+        }
+    }
+    
+    progressBar.style.width = '100%';
+    progressText.textContent = `Hoàn tất tải lên ${files.length} ảnh! Đang lưu bản thảo...`;
+    
+    document.getElementById('manuscriptJson').value = JSON.stringify(uploadedPaths);
+    
+    // Remove the files from input so they don't upload again in standard form POST
+    fileInput.value = '';
+    
+    // Submit the form
+    form.submit();
+}
+
 // Open create chapter modal
 function openCreateChapterModal(seriesId) {
     document.getElementById('chapterModalSeriesId').value = seriesId;
     document.getElementById('createChapterModal').classList.add('open');
+}
+
+// Validate create chapter to check for duplicate chapter numbers on submit
+function validateCreateChapter(form) {
+    const chapterNumber = parseInt(form.chapter_number.value, 10);
+    const existingChapters = <?= json_encode(array_map(function($c) { return (int)$c['chapter_number']; }, $detailChapters ?? [])) ?>;
+    
+    if (existingChapters.includes(chapterNumber)) {
+        document.getElementById('chapterError').textContent = 'Chương số ' + chapterNumber + ' đã tồn tại. Vui lòng chọn số chương khác!';
+        document.getElementById('chapterError').style.display = 'block';
+        return false;
+    }
+    return true;
+}
+
+// Live validation while typing chapter number
+function checkChapterNumber(value) {
+    const chapterNumber = parseInt(value, 10);
+    const existingChapters = <?= json_encode(array_map(function($c) { return (int)$c['chapter_number']; }, $detailChapters ?? [])) ?>;
+    const errorDiv = document.getElementById('chapterError');
+    const submitBtn = document.getElementById('createChapterSubmitBtn');
+    
+    if (!isNaN(chapterNumber) && existingChapters.includes(chapterNumber)) {
+        errorDiv.textContent = 'Chương số ' + chapterNumber + ' đã tồn tại. Vui lòng chọn số chương khác!';
+        errorDiv.style.display = 'block';
+        if (submitBtn) submitBtn.disabled = true;
+    } else {
+        errorDiv.style.display = 'none';
+        if (submitBtn) submitBtn.disabled = false;
+    }
 }
 
 // Open submit modal and pre-select series

@@ -343,16 +343,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    // ── submit_task — assistant nộp kết quả ───────────
+    // ── submit_task — assistant nộp kết quả (nhiều ảnh) ───────────
     if ($action === 'submit_task') {
         if ($currentUser['role'] !== ROLES['ASSISTANT']) {
             taskOut(false, null, 'Chỉ trợ lý mới được nộp kết quả.', 403);
         }
 
-        $taskId     = (int)($body['task_id']    ?? 0);
-        $fileResult = trim($body['file_result'] ?? ''); // path từ upload API
-
+        $taskId = (int)($body['task_id'] ?? 0);
         if ($taskId <= 0) taskOut(false, null, 'task_id không hợp lệ.', 422);
+
+        // Nhận danh sách paths ảnh (JSON array string hoặc array)
+        $filePaths = $body['file_paths'] ?? $body['file_result'] ?? null;
+        if (is_string($filePaths)) {
+            // Thử parse JSON array, nếu không thì coi là 1 path đơn
+            $decoded = json_decode($filePaths, true);
+            $filePaths = is_array($decoded) ? $decoded : [$filePaths];
+        }
+        // Lọc rỗng
+        $filePaths = array_values(array_filter((array)$filePaths, fn($p) => !empty(trim($p))));
+
+        if (empty($filePaths)) {
+            taskOut(false, null, 'Cần ít nhất 1 ảnh kết quả.', 422);
+        }
+
+        // Validate: chỉ cho phép ảnh
+        $allowedImgExts = ['jpg', 'jpeg', 'png', 'webp'];
+        foreach ($filePaths as $p) {
+            $ext = strtolower(pathinfo(trim($p), PATHINFO_EXTENSION));
+            if (!in_array($ext, $allowedImgExts, true)) {
+                taskOut(false, null, "File \"" . basename($p) . "\" không phải ảnh (jpg/jpeg/png/webp).", 422);
+            }
+        }
 
         try {
             // Kiểm tra task thuộc về assistant này
@@ -373,9 +394,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 taskOut(false, null, 'Task không ở trạng thái có thể nộp.', 409);
             }
 
+            // Lưu JSON array paths
+            $fileResultJson = count($filePaths) === 1
+                ? $filePaths[0]             // Tương thích ngược: 1 file → string thường
+                : json_encode($filePaths);  // Nhiều file → JSON array
+
             $db->prepare(
                 "UPDATE tasks SET status = 'submitted', file_result = ? WHERE id = ?"
-            )->execute([$fileResult ?: null, $taskId]);
+            )->execute([$fileResultJson, $taskId]);
 
             // Notify mangaka
             $db->prepare(
@@ -383,10 +409,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                  VALUES (?, 'task_submitted', ?, 'mangaka/tasks.php')"
             )->execute([
                 $task['mangaka_id'],
-                "Trợ lý {$currentUser['username']} đã NỘP KẾT QUẢ nhiệm vụ ({$task['task_type']}).",
+                "Trợ lý {$currentUser['username']} đã NỘP KẾT QUẢ nhiệm vụ ({$task['task_type']}) — " . count($filePaths) . " ảnh.",
             ]);
 
-            taskOut(true, ['task_id' => $taskId], 'Đã nộp kết quả thành công!');
+            taskOut(true, ['task_id' => $taskId, 'file_count' => count($filePaths)], 'Đã nộp kết quả thành công!');
         } catch (\Throwable $e) {
             taskOut(false, null, 'Lỗi máy chủ: ' . $e->getMessage(), 500);
         }

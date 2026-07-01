@@ -1,6 +1,7 @@
 CREATE DATABASE IF NOT EXISTS manga_system;
 USE manga_system;
 SET FOREIGN_KEY_CHECKS = 0;
+DROP TABLE IF EXISTS defenses;
 DROP TABLE IF EXISTS notifications;
 DROP TABLE IF EXISTS earnings;
 DROP TABLE IF EXISTS annotations;
@@ -23,6 +24,7 @@ CREATE TABLE users (
     role ENUM('mangaka', 'assistant', 'editor', 'board') NOT NULL,
     avatar VARCHAR(255) DEFAULT NULL,
     bio TEXT DEFAULT NULL,
+    is_active INT NOT NULL DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -46,7 +48,7 @@ CREATE TABLE chapters (
     series_id INT NOT NULL,
     chapter_number INT NOT NULL,
     title VARCHAR(150) NOT NULL,
-    status ENUM('planning', 'in_progress', 'review', 'approved', 'published') DEFAULT 'planning',
+    status ENUM('planning', 'in_progress', 'review', 'approved', 'published', 'rejected') DEFAULT 'planning',
     deadline DATE DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_chapters_series FOREIGN KEY (series_id) REFERENCES series(id) ON DELETE CASCADE,
@@ -70,7 +72,7 @@ CREATE TABLE manuscripts (
     id INT AUTO_INCREMENT PRIMARY KEY,
     series_id INT NOT NULL,
     chapter_id INT NOT NULL,
-    file_path VARCHAR(255) NOT NULL,
+    file_path LONGTEXT NOT NULL,
     version INT DEFAULT 1,
     submitted_by INT NOT NULL,
     status ENUM('pending', 'reviewing', 'approved', 'rejected') DEFAULT 'pending',
@@ -168,6 +170,21 @@ CREATE TABLE notifications (
     CONSTRAINT fk_notifications_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 12. BẢNG BIỆN HỘ / GIẢI TRÌNH BẢN THẢO (defenses)
+CREATE TABLE defenses (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    mangaka_id INT NOT NULL,
+    chapter_id INT NOT NULL,
+    manuscript_id INT DEFAULT NULL,
+    reason TEXT NOT NULL,
+    status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_defenses_mangaka FOREIGN KEY (mangaka_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_defenses_chapter FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE,
+    CONSTRAINT fk_defenses_manuscript FOREIGN KEY (manuscript_id) REFERENCES manuscripts(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ==========================================
 -- INDEXES BỔ SUNG CHO TỐI ƯU TRUY VẤN
 -- ==========================================
@@ -181,6 +198,7 @@ CREATE INDEX idx_manuscripts_status ON manuscripts(status);
 CREATE INDEX idx_submissions_status ON submissions(status);
 CREATE INDEX idx_votes_period ON votes(vote_period);
 CREATE INDEX idx_notifications_unread ON notifications(user_id, is_read);
+CREATE INDEX idx_defenses_status ON defenses(status);
 
 -- ==========================================
 -- DỮ LIỆU MẪU (SEED DATA)
@@ -201,9 +219,9 @@ INSERT INTO users (id, username, email, password, role, avatar, bio) VALUES
 
 -- Seeding cho bảng series
 INSERT INTO series (id, mangaka_id, title, description, genre, status, cover_image, publish_schedule) VALUES
-(1, 1, 'Hành trình thế giới ảo', 'Một cậu bé tình cờ lạc vào thế giới trò chơi thực tế ảo đầy rẫy hiểm nguy nhưng cũng vô vàn phần thưởng hấp dẫn.', 'Isekai, Phiêu lưu, Action', 'publishing', 'assets/images/covers/isekai_journey.png', 'weekly'),
-(2, 1, 'Huyền thoại kiếm sĩ', 'Kiếm sĩ cuối cùng của vương quốc đi tìm kiếm thanh thần kiếm bị thất lạc để cứu lấy bờ cõi khỏi bóng tối.', 'Hành động, Fantasy', 'submitted', 'assets/images/covers/sword_legend.png', 'weekly'),
-(3, 1, 'Tình yêu học đường', 'Câu chuyện tình yêu nhẹ nhàng, hài hước giữa cô bạn lớp trưởng năng động và cậu học sinh cá biệt.', 'Romance, Slice of Life', 'draft', 'assets/images/covers/school_love.png', 'monthly');
+(1, 1, 'Hành trình thế giới ảo', 'Một cậu bé tình cờ lạc vào thế giới trò chơi thực tế ảo đầy rẫy hiểm nguy nhưng cũng vô vàn phần thưởng hấp dẫn.', 'Isekai, Phiêu lưu, Action', 'publishing', 'covers/thegioiao.jpg', 'weekly'),
+(2, 1, 'Huyền thoại kiếm sĩ', 'Kiếm sĩ cuối cùng của vương quốc đi tìm kiếm thanh thần kiếm bị thất lạc để cứu lấy bờ cõi khỏi bóng tối.', 'Hành động, Fantasy', 'submitted', 'covers/huyenthoaikiemsi.jpg', 'weekly'),
+(3, 1, 'Tình yêu học đường', 'Câu chuyện tình yêu nhẹ nhàng, hài hước giữa cô bạn lớp trưởng năng động và cậu học sinh cá biệt.', 'Romance, Slice of Life', 'draft', 'covers/tinhyeuhocduong.jpg', 'monthly');
 
 -- Seeding cho bảng chapters
 INSERT INTO chapters (id, series_id, chapter_number, title, status, deadline) VALUES
@@ -250,3 +268,8 @@ INSERT INTO earnings (id, assistant_id, month, year, approved_pages, rate_per_pa
 INSERT INTO notifications (id, user_id, type, message, is_read, link) VALUES
 (1, 2, 'task_assigned', 'Họa sĩ Manga đã giao cho bạn một nhiệm vụ vẽ background mới.', 0, 'assistant/tasks.php'),
 (2, 1, 'manuscript_review', 'Biên tập viên đã thêm ghi chú yêu cầu sửa đổi chương 43.', 0, 'mangaka/dashboard.php');
+
+-- Seeding cho bảng defenses (Giải trình bản thảo)
+INSERT INTO defenses (id, mangaka_id, chapter_id, manuscript_id, reason, status, created_at, updated_at) VALUES
+(1, 1, 3, 2, 'Kính gửi Ban Biên Tập, tôi xin giải trình về việc chỉnh sửa lại toàn bộ các khung hình chiến đấu ở trang 12 và 13 theo đúng góp ý của Biên tập viên ở phiên bản trước. Tôi cũng đã nâng cấp chi tiết background cảnh đổ nát và cải thiện phần đi nét của nhân vật chính để tăng tính kịch tính cho phân cảnh cao trào. Rất mong Biên tập viên xem xét lại và thông qua bản thảo này để kịp tiến độ xuất bản tuần tới. Xin chân thành cảm ơn!', 'pending', '2026-06-23 10:00:00', '2026-06-23 10:00:00'),
+(2, 1, 2, 1, 'Bản thảo chương 42 bị hệ thống đánh dấu từ chối ban đầu là do lỗi trùng lặp tệp tin khi upload hai lần liên tiếp. Tôi xin đính kèm bản giải trình này cùng tệp tin chính xác nhất đã được tinh chỉnh phần hiệu ứng tô bóng. Kính mong Biên tập viên phê duyệt để chúng tôi thực hiện các chương tiếp theo.', 'approved', '2026-06-15 09:00:00', '2026-06-16 14:00:00');

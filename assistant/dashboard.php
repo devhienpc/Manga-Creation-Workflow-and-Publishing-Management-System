@@ -44,13 +44,13 @@ $completedPagesMonth = (int)$stmt->fetchColumn();
    3. TRUY VẤN THU NHẬP THÁNG HIỆN TẠI (PREVIEW)
    ══════════════════════════════════════════════════ */
 $stmt = $db->prepare(
-    "SELECT total FROM earnings 
+    "SELECT SUM(total) FROM earnings 
      WHERE assistant_id = ? AND month = ? AND year = ?"
 );
 $stmt->execute([$uid, $currentMonth, $currentYear]);
 $monthlyEarnings = $stmt->fetchColumn();
 
-if ($monthlyEarnings !== false) {
+if ($monthlyEarnings !== false && $monthlyEarnings !== null) {
     $earningsPreview = (float)$monthlyEarnings;
     $isOfficialEarnings = true;
 } else {
@@ -59,10 +59,13 @@ if ($monthlyEarnings !== false) {
     $earningsPreview = $completedPagesMonth * $fallbackRate;
     $isOfficialEarnings = false;
 }
-
 /* ══════════════════════════════════════════════════
    4. TRUY VẤN DEADLINE SẮP TỚI TRONG 7 NGÀY
    ══════════════════════════════════════════════════ */
+// Dùng PHP để tính toán ngày thay vì dùng hàm của MySQL để tương thích với SQLite
+$today = date('Y-m-d');
+$next7Days = date('Y-m-d', strtotime('+7 days'));
+
 // Lấy các task chưa duyệt có deadline trong 7 ngày tới
 $stmt = $db->prepare(
     "SELECT t.id, t.task_type, t.due_date, t.status, 
@@ -74,13 +77,13 @@ $stmt = $db->prepare(
      WHERE t.assigned_to = ? 
        AND t.status IN ('pending', 'in_progress', 'revision')
        AND t.due_date IS NOT NULL
-       AND t.due_date >= CURRENT_DATE()
-       AND t.due_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 7 DAY)
+       AND t.due_date >= ?
+       AND t.due_date <= ?
      ORDER BY t.due_date ASC"
 );
-$stmt->execute([$uid]);
+// Truyền thêm $today và $next7Days vào hàm execute
+$stmt->execute([$uid, $today, $next7Days]);
 $upcomingDeadlines = $stmt->fetchAll();
-
 /* ══════════════════════════════════════════════════
    5. DANH SÁCH 5 TASKS MỚI NHẤT ĐƯỢC GIAO
    ══════════════════════════════════════════════════ */
@@ -242,7 +245,8 @@ $taskStatusLabels = [
             <?php else: ?>
                 <div style="display:flex; flex-direction:column; gap:12px;">
                     <?php foreach ($upcomingDeadlines as $ud):
-                        $daysLeft = (int)round((strtotime($ud['due_date']) - time()) / 86400);
+                        $dueDateVal = strtotime($ud['due_date'] . ' 23:59:59');
+$daysLeft = (int)floor(($dueDateVal - time()) / 86400);
                         if ($daysLeft < 0) {
                             $daysText = 'Quá hạn ' . abs($daysLeft) . ' ngày';
                         } elseif ($daysLeft === 0) {

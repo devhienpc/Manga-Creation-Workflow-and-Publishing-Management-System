@@ -118,27 +118,41 @@ $roleLabel = $roleLabels[$currentUser['role']] ?? ucfirst($currentUser['role']);
         </div>
 
         <!-- User info pill -->
-        <div class="header-user">
-            <?php if (!empty($currentUser['avatar']) && file_exists(UPLOAD_PATH . $currentUser['avatar'])): ?>
-                <img src="<?= BASE_URL . 'assets/uploads/' . htmlspecialchars($currentUser['avatar']) ?>"
+        <div class="header-user" style="position:relative; cursor:pointer;" onclick="toggleProfileMenu()" title="Tài khoản của tôi">
+            <?php if (avatarFileExists($currentUser['avatar'] ?? '')): ?>
+                <img src="<?= htmlspecialchars(avatarImageUrl($currentUser['avatar'])) . '?t=' . avatarFileMtime($currentUser['avatar']) ?>"
                      alt="avatar" class="user-avatar">
             <?php else: ?>
                 <div class="user-avatar">
-                    <?= strtoupper(mb_substr($currentUser['username'], 0, 1)) ?>
+                    <?= strtoupper(mb_substr($currentUser['username'] ?? '', 0, 1)) ?>
                 </div>
             <?php endif; ?>
             <span class="header-user-name"><?= htmlspecialchars($currentUser['fullname'] ?? $currentUser['username']) ?></span>
             <span class="role-badge <?= $currentUser['role'] ?>"><?= $roleLabel ?></span>
+            <!-- Mini dropdown -->
+            <div id="profileMenu" style="display:none; position:absolute; top:calc(100% + 10px); right:0; background:var(--bg-card); border:1px solid var(--border); border-radius:10px; padding:6px; min-width:170px; z-index:200; box-shadow:0 8px 32px rgba(0,0,0,0.4);">
+                <a href="<?= BASE_URL ?>profile.php" style="display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:7px; color:var(--text-muted); font-size:0.85rem; font-weight:500; transition:background 0.15s;" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background=''">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    Hồ sơ của tôi
+                </a>
+                <div style="height:1px; background:var(--border); margin:4px 0;"></div>
+                <a href="<?= BASE_URL ?>auth/logout.php" style="display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:7px; color:#f87171; font-size:0.85rem; font-weight:500; transition:background 0.15s;" onmouseover="this.style.background='rgba(239,68,68,0.07)'" onmouseout="this.style.background=''">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                    Đăng xuất
+                </a>
+            </div>
         </div>
-
-        <!-- Logout button (hidden on mobile) -->
-        <a href="<?= BASE_URL ?>auth/logout.php" class="header-logout" title="Đăng xuất">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                <polyline points="16 17 21 12 16 7"/>
-                <line x1="21" y1="12" x2="9" y2="12"/>
-            </svg>
-            Đăng xuất
-        </a>
     </div>
 </header>
+<script>
+function toggleProfileMenu() {
+    const menu = document.getElementById('profileMenu');
+    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+}
+document.addEventListener('click', function(e) {
+    const menu = document.getElementById('profileMenu');
+    if (menu && !e.target.closest('.header-user')) {
+        menu.style.display = 'none';
+    }
+});
+</script>

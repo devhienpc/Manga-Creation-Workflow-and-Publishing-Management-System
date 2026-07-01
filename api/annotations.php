@@ -323,9 +323,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
 
             // 6. Notify all board members
-            $boardUsers = $db->prepare("SELECT id FROM users WHERE role = ?")->execute([ROLES['BOARD']])
-                ? $db->query("SELECT id FROM users WHERE role = 'board'")->fetchAll(\PDO::FETCH_COLUMN)
-                : [];
+            $boardStmt = $db->prepare("SELECT id FROM users WHERE role = ?");
+            $boardUsers = [];
+            if ($boardStmt->execute([ROLES['BOARD']])) {
+                $boardUsers = $boardStmt->fetchAll(\PDO::FETCH_COLUMN);
+            }
             $boardInsert = $db->prepare(
                 "INSERT INTO notifications (user_id, type, message, link)
                  VALUES (?, 'manuscript_review', ?, 'board/voting.php')"
@@ -339,6 +341,70 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $db->commit();
             annOut(true, ['submission_created' => true], 'Đã đệ trình lên Ban biên tập thành công!');
+        } catch (\Throwable $e) {
+            if ($db->inTransaction()) $db->rollBack();
+            annOut(false, null, 'Lỗi hệ thống: ' . $e->getMessage(), 500);
+        }
+    }
+
+    // ── reject_manuscript ────────────────────────────────
+    if ($action === 'reject_manuscript') {
+        requireEditor();
+
+        $manuscriptId = (int)($body['manuscript_id'] ?? 0);
+        $rejectNotes  = trim($body['reject_notes']   ?? '');
+
+        if ($manuscriptId <= 0) annOut(false, null, 'manuscript_id không hợp lệ.', 422);
+
+        try {
+            $stmt = $db->prepare(
+                "SELECT m.id, m.series_id, m.chapter_id, m.submitted_by,
+                        s.title AS series_title
+                 FROM manuscripts m
+                 JOIN series s ON s.id = m.series_id
+                 WHERE m.id = ? LIMIT 1"
+            );
+            $stmt->execute([$manuscriptId]);
+            $manuscript = $stmt->fetch();
+
+            if (!$manuscript) annOut(false, null, 'Không tìm thấy bản thảo.', 404);
+
+            $db->beginTransaction();
+
+            // 1. Cập nhật bản thảo → rejected
+            $db->prepare("UPDATE manuscripts SET status = 'rejected' WHERE id = ?")
+               ->execute([$manuscriptId]);
+
+            // 2. Cập nhật chương → rejected
+            if ($manuscript['chapter_id']) {
+                $db->prepare("UPDATE chapters SET status = 'rejected' WHERE id = ?")
+                   ->execute([$manuscript['chapter_id']]);
+            }
+
+            // 4. Thông tin cho notification
+            $chapterStr = '';
+            if ($manuscript['chapter_id']) {
+                $cStmt = $db->prepare("SELECT chapter_number FROM chapters WHERE id = ?");
+                $cStmt->execute([$manuscript['chapter_id']]);
+                $cn = $cStmt->fetchColumn();
+                $chapterStr = $cn ? "Chương {$cn}" : '';
+            }
+            $title = $manuscript['series_title'];
+            $cStr  = $chapterStr ?: 'Toàn bộ series';
+
+            // 5. Notify mangaka
+            $link = "mangaka/manuscripts.php?manuscript_id={$manuscriptId}";
+            $db->prepare(
+                "INSERT INTO notifications (user_id, type, message, link)
+                 VALUES (?, 'manuscript_rejected', ?, ?)"
+            )->execute([
+                $manuscript['submitted_by'],
+                "Biên tập viên đã TỪ CHỐI bản thảo ({$cStr}) của bộ truyện \"{$title}\". Lý do: {$rejectNotes}",
+                $link
+            ]);
+
+            $db->commit();
+            annOut(true, ['manuscript_rejected' => true], 'Đã từ chối bản thảo và gửi thông báo cho Họa sĩ!');
         } catch (\Throwable $e) {
             if ($db->inTransaction()) $db->rollBack();
             annOut(false, null, 'Lỗi hệ thống: ' . $e->getMessage(), 500);

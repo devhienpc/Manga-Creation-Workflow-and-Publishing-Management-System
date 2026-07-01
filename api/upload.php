@@ -64,14 +64,14 @@ const UPLOAD_CONFIG = [
         'dir'           => 'assets/uploads/pages/',
         'allowed_types' => ['image/jpeg', 'image/png', 'image/webp'],
         'allowed_exts'  => ['jpg', 'jpeg', 'png', 'webp'],
-        'max_size'      => 15 * 1024 * 1024,  // 15 MB
-        'max_size_label'=> '15MB',
+        'max_size'      => 20 * 1024 * 1024,  // 20 MB
+        'max_size_label'=> '20MB',
     ],
     'task_result' => [
         'dir'           => 'assets/uploads/tasks/',
-        'allowed_types' => ['image/jpeg', 'image/png', 'image/webp', 'application/zip'],
-        'allowed_exts'  => ['jpg', 'jpeg', 'png', 'webp', 'zip'],
-        'max_size'      => 20 * 1024 * 1024,  // 20 MB
+        'allowed_types' => ['image/jpeg', 'image/png', 'image/webp'],
+        'allowed_exts'  => ['jpg', 'jpeg', 'png', 'webp'],
+        'max_size'      => 20 * 1024 * 1024,  // 20 MB mỗi ảnh
         'max_size_label'=> '20MB',
     ],
 ];
@@ -193,7 +193,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // ── Tạo thư mục đích nếu chưa tồn tại ──
     $targetDir  = $projectRoot . str_replace('/', DIRECTORY_SEPARATOR, $cfg['dir']);
     $subDir     = $seriesId > 0 ? $seriesId . DIRECTORY_SEPARATOR : '';
-    $fullDir    = $targetDir . $subDir;
+    $fullDir    = $targetDir . $subDir; // OS-native separators for filesystem ops
 
     if (!is_dir($fullDir)) {
         if (!mkdir($fullDir, 0755, true)) {
@@ -215,12 +215,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // ── Tạo relative path để lưu vào DB ──
-    $relativePath = str_replace(DIRECTORY_SEPARATOR, '/', $cfg['dir']) . $subDir . $newName;
-    // Chuẩn hóa path (thay DIRECTORY_SEPARATOR nếu cần)
-    $relativePath = str_replace('//', '/', $relativePath);
+    // Normalize $subDir to forward slashes (important on Windows where DIRECTORY_SEPARATOR = '\')
+    $subDirWeb    = str_replace(DIRECTORY_SEPARATOR, '/', $subDir);
+    $relativePath = str_replace(DIRECTORY_SEPARATOR, '/', $cfg['dir']) . $subDirWeb . $newName;
+    // Chuẩn hóa path: xóa double-slash và backslash còn sót lại
+    $relativePath = str_replace(['\\', '//'], ['/', '/'], $relativePath);
+    $relativePath = ltrim($relativePath, '/');
 
     // ── Tạo URL public ──
     $publicUrl = rtrim(BASE_URL, '/') . '/' . ltrim($relativePath, '/');
+
+    // ── Nếu upload_type=page và page_id được cung cấp → cập nhật pages.original_file ──
+    $pageId = (int)($_POST['page_id'] ?? 0);
+    if ($uploadType === 'page' && $pageId > 0) {
+        // Xác minh page thuộc chapter/series của người dùng hiện tại
+        $verifyStmt = $db->prepare(
+            "SELECT p.id FROM pages p
+             JOIN chapters c ON c.id = p.chapter_id
+             JOIN series   s ON s.id = c.series_id
+             WHERE p.id = ? AND (
+                 s.mangaka_id = ?
+                 OR EXISTS (
+                     SELECT 1 FROM tasks t
+                     WHERE t.page_id = p.id AND t.assigned_to = ?
+                 )
+             ) LIMIT 1"
+        );
+        $verifyStmt->execute([$pageId, $currentUser['id'], $currentUser['id']]);
+        if ($verifyStmt->fetch()) {
+            $db->prepare("UPDATE pages SET original_file = ? WHERE id = ?")
+               ->execute([$relativePath, $pageId]);
+        }
+    }
 
     uploadOut(true, [
         'path'        => $relativePath,
@@ -230,6 +256,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'size'        => $file['size'],
         'mime'        => $mimeType,
         'upload_type' => $uploadType,
+        'page_id'     => $pageId ?: null,
     ], 'Upload thành công!');
 }
 

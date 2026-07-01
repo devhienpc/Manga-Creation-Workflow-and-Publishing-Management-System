@@ -33,7 +33,14 @@ $menus = [
             'items' => [
                 ['page' => 'tasks',    'label' => 'Task Manager',   'href' => BASE_URL . 'mangaka/tasks.php',   'icon' => 'check-square'],
                 ['page' => 'ranking',  'label' => 'BXH Truyện',     'href' => BASE_URL . 'mangaka/ranking.php', 'icon' => 'trending-up'],
+                ['page' => 'defense',  'label' => 'Bảo vệ tác phẩm', 'href' => BASE_URL . 'mangaka/defense.php', 'icon' => 'shield'],
                 ['page' => 'notifs',   'label' => 'Thông báo',      'href' => BASE_URL . 'mangaka/notifications.php', 'icon' => 'bell', 'badge' => true],
+            ]
+        ],
+        [
+            'label' => 'TÀI KHOẢN',
+            'items' => [
+                ['page' => 'profile', 'label' => 'Hồ sơ của tôi', 'href' => BASE_URL . 'profile.php', 'icon' => 'user-circle'],
             ]
         ],
     ],
@@ -44,6 +51,12 @@ $menus = [
                 ['page' => 'dashboard', 'label' => 'Dashboard',       'href' => BASE_URL . 'assistant/dashboard.php', 'icon' => 'grid'],
                 ['page' => 'tasks',     'label' => 'Nhiệm vụ của tôi', 'href' => BASE_URL . 'assistant/tasks.php',    'icon' => 'clipboard'],
                 ['page' => 'earnings',  'label' => 'Thu nhập',         'href' => BASE_URL . 'assistant/earnings.php',  'icon' => 'dollar-sign'],
+            ]
+        ],
+        [
+            'label' => 'TÀI KHOẢN',
+            'items' => [
+                ['page' => 'profile', 'label' => 'Hồ sơ của tôi', 'href' => BASE_URL . 'profile.php', 'icon' => 'user-circle'],
             ]
         ],
     ],
@@ -62,6 +75,12 @@ $menus = [
                 ['page' => 'defense',   'label' => 'Bảo vệ tác phẩm',  'href' => BASE_URL . 'editor/defense.php',    'icon' => 'shield'],
             ]
         ],
+        [
+            'label' => 'TÀI KHOẢN',
+            'items' => [
+                ['page' => 'profile', 'label' => 'Hồ sơ của tôi', 'href' => BASE_URL . 'profile.php', 'icon' => 'user-circle'],
+            ]
+        ],
     ],
     'board' => [
         [
@@ -77,6 +96,12 @@ $menus = [
                 ['page' => 'ranking',   'label' => 'Xếp hạng tổng quát', 'href' => BASE_URL . 'board/ranking.php',   'icon' => 'award'],
                 ['page' => 'decisions', 'label' => 'Quyết định xuất bản', 'href' => BASE_URL . 'board/decisions.php', 'icon' => 'check-circle'],
                 ['page' => 'admin_dashboard', 'label' => 'Quản trị hệ thống', 'href' => BASE_URL . 'admin/index.php', 'icon' => 'grid'],
+            ]
+        ],
+        [
+            'label' => 'TÀI KHOẢN',
+            'items' => [
+                ['page' => 'profile', 'label' => 'Hồ sơ của tôi', 'href' => BASE_URL . 'profile.php', 'icon' => 'user-circle'],
             ]
         ],
     ],
@@ -106,6 +131,7 @@ function navIcon(string $name): string {
         'bar-chart-2'  => '<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>',
         'award'        => '<circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/>',
         'check-circle' => '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>',
+        'user-circle'  => '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
     ];
     $d = $icons[$name] ?? '<circle cx="12" cy="12" r="5"/>';
     return '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' . $d . '</svg>';
@@ -119,10 +145,10 @@ $currentMenuGroups = $menus[$role] ?? [];
 <aside id="appSidebar" class="sidebar">
 
     <!-- Brand -->
-    <div class="sidebar-brand">
-        <div class="brand-icon">MF</div>
-        <span class="brand-name">MangaFlow</span>
-    </div>
+    <a href="<?= BASE_URL . $role . '/dashboard.php' ?>" class="sidebar-brand" style="text-decoration:none;" title="Về trang chủ">
+        <div class="brand-icon">MS</div>
+        <span class="brand-name">Manga System</span>
+    </a>
 
     <!-- User role strip -->
     <div class="sidebar-role">
@@ -140,9 +166,9 @@ $currentMenuGroups = $menus[$role] ?? [];
                        data-path="<?= htmlspecialchars(parse_url($item['href'], PHP_URL_PATH)) ?>">
                         <?= navIcon($item['icon']) ?>
                         <span><?= htmlspecialchars($item['label']) ?></span>
-                        <?php if (!empty($item['badge']) && $unreadCount > 0): ?>
-                            <span class="nav-badge"><?= $unreadCount ?></span>
-                        <?php endif; ?>
+                        <?php if (!empty($item['badge']) && ($unreadCount ?? 0) > 0): ?>
+    <span class="nav-badge"><?= $unreadCount ?? 0 ?></span>
+<?php endif; ?>
                     </a>
                 </div>
             <?php endforeach; ?>
@@ -152,12 +178,12 @@ $currentMenuGroups = $menus[$role] ?? [];
     <!-- User + logout at bottom -->
     <div class="sidebar-footer">
         <div class="sidebar-user">
-            <?php if (!empty($currentUser['avatar']) && file_exists(UPLOAD_PATH . $currentUser['avatar'])): ?>
-                <img src="<?= BASE_URL . 'assets/uploads/' . htmlspecialchars($currentUser['avatar']) ?>"
+            <?php if (avatarFileExists($currentUser['avatar'] ?? '')): ?>
+                <img src="<?= htmlspecialchars(avatarImageUrl($currentUser['avatar'])) . '?t=' . avatarFileMtime($currentUser['avatar']) ?>"
                      alt="avatar" class="user-avatar">
             <?php else: ?>
                 <div class="user-avatar">
-                    <?= strtoupper(mb_substr($currentUser['username'], 0, 1)) ?>
+                    <?= strtoupper(mb_substr($currentUser['username'] ?? '', 0, 1)) ?>
                 </div>
             <?php endif; ?>
 
