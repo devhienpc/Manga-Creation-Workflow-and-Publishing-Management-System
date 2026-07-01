@@ -77,7 +77,7 @@ if ($selectedManuscriptId > 0) {
          WHERE m.id = ?"
     );
     $dStmt->execute([$selectedManuscriptId]);
-    $manuscriptDetail = $dStmt->fetch();
+    $manuscriptDetail = $dStmt->fetch() ?: null;
 
     if ($manuscriptDetail && $manuscriptDetail['chapter_id']) {
         // Lấy danh sách trang của chương này

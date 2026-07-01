@@ -75,7 +75,7 @@ if ($selectedManuscriptId > 0) {
          WHERE m.id = ?"
     );
     $dStmt->execute([$selectedManuscriptId]);
-    $manuscriptDetail = $dStmt->fetch();
+    $manuscriptDetail = $dStmt->fetch() ?: null;
 
     if ($manuscriptDetail && $manuscriptDetail['chapter_id']) {
         // Lấy danh sách trang của chương này
@@ -750,6 +750,11 @@ $annotationStatusLabels = [
         const notes = document.getElementById('boardSubmitNotes').value.trim();
         const mId   = document.getElementById('boardManuscriptId').value;
 
+        if (!mId || parseInt(mId) <= 0) {
+            alert('Lỗi: Chưa chọn bản thảo hợp lệ. Vui lòng đóng hộp thoại và chọn lại bản thảo.');
+            return;
+        }
+
         if (!notes) {
             alert('Vui lòng nhập nhận xét đề xuất gửi lên Ban biên tập.');
             return;
@@ -794,6 +799,11 @@ $annotationStatusLabels = [
     function confirmRejectManuscript() {
         const notes = document.getElementById('rejectNotes').value.trim();
         const mId   = document.getElementById('rejectManuscriptId').value;
+
+        if (!mId || parseInt(mId) <= 0) {
+            alert('Lỗi: Chưa chọn bản thảo hợp lệ. Vui lòng đóng hộp thoại và chọn lại bản thảo.');
+            return;
+        }
 
         if (!notes) {
             alert('Vui lòng nhập lý do từ chối để họa sĩ biết cần sửa gì.');

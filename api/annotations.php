@@ -323,9 +323,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
 
             // 6. Notify all board members
-            $boardUsers = $db->prepare("SELECT id FROM users WHERE role = ?")->execute([ROLES['BOARD']])
-                ? $db->query("SELECT id FROM users WHERE role = 'board'")->fetchAll(\PDO::FETCH_COLUMN)
-                : [];
+            $boardStmt = $db->prepare("SELECT id FROM users WHERE role = ?");
+            $boardUsers = [];
+            if ($boardStmt->execute([ROLES['BOARD']])) {
+                $boardUsers = $boardStmt->fetchAll(\PDO::FETCH_COLUMN);
+            }
             $boardInsert = $db->prepare(
                 "INSERT INTO notifications (user_id, type, message, link)
                  VALUES (?, 'manuscript_review', ?, 'board/voting.php')"
