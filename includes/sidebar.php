@@ -38,6 +38,13 @@ $menus = [
             ]
         ],
         [
+            'label' => 'AI TOOLS',
+            'items' => [
+                ['page' => 'ai_colorize', 'label' => 'Tô màu tự động',  'href' => BASE_URL . 'ai/colorize.php', 'icon' => 'zap', 'ai' => true],
+                ['page' => 'ai_segment',  'label' => 'Phân đoạn trang', 'href' => BASE_URL . 'ai/segment.php',  'icon' => 'cpu', 'ai' => true],
+            ]
+        ],
+        [
             'label' => 'TÀI KHOẢN',
             'items' => [
                 ['page' => 'profile', 'label' => 'Hồ sơ của tôi', 'href' => BASE_URL . 'profile.php', 'icon' => 'user-circle'],
@@ -51,6 +58,12 @@ $menus = [
                 ['page' => 'dashboard', 'label' => 'Dashboard',       'href' => BASE_URL . 'assistant/dashboard.php', 'icon' => 'grid'],
                 ['page' => 'tasks',     'label' => 'Nhiệm vụ của tôi', 'href' => BASE_URL . 'assistant/tasks.php',    'icon' => 'clipboard'],
                 ['page' => 'earnings',  'label' => 'Thu nhập',         'href' => BASE_URL . 'assistant/earnings.php',  'icon' => 'dollar-sign'],
+            ]
+        ],
+        [
+            'label' => 'AI TOOLS',
+            'items' => [
+                ['page' => 'ai_colorize', 'label' => 'Tô màu tự động', 'href' => BASE_URL . 'ai/colorize.php', 'icon' => 'zap', 'ai' => true],
             ]
         ],
         [
@@ -132,6 +145,9 @@ function navIcon(string $name): string {
         'award'        => '<circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/>',
         'check-circle' => '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>',
         'user-circle'  => '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+        // AI Tools icons
+        'zap'          => '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+        'cpu'          => '<rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/>',
     ];
     $d = $icons[$name] ?? '<circle cx="12" cy="12" r="5"/>';
     return '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' . $d . '</svg>';
@@ -168,6 +184,9 @@ $currentMenuGroups = $menus[$role] ?? [];
                         <span><?= htmlspecialchars($item['label']) ?></span>
                         <?php if (!empty($item['badge']) && ($unreadCount ?? 0) > 0): ?>
     <span class="nav-badge"><?= $unreadCount ?? 0 ?></span>
+<?php endif; ?>
+                        <?php if (!empty($item['ai'])): ?>
+    <span style="font-size:.5rem;font-weight:800;letter-spacing:.5px;padding:1px 5px;border-radius:100px;background:linear-gradient(135deg,#7B2FBE,#a855f7);color:#fff;margin-left:auto;flex-shrink:0;">AI</span>
 <?php endif; ?>
                     </a>
                 </div>

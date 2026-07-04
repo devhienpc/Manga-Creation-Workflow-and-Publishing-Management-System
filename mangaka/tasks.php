@@ -554,7 +554,15 @@ $jsTaskTypeColors = json_encode([
                 <p class="card-title" id="canvasTitle">Khoanh Vùng Giao Việc</p>
                 <p class="card-subtitle">Kéo chuột để vẽ vùng → điền form bên phải để giao việc</p>
             </div>
-            <div style="display:flex;gap:8px;">
+            <div style="display:flex;gap:8px;align-items:center;">
+                <!-- Nút AI Phân đoạn -->
+                <button class="btn btn-sm" id="btnAiSegment"
+                        onclick="runAiSegment()"
+                        style="background:linear-gradient(135deg,#7B2FBE,#a855f7);color:#fff;border:none;display:flex;align-items:center;gap:5px;font-weight:700;"
+                        title="AI tự động phân tích vùng trang này">
+                    🤖 AI Phân đoạn
+                    <span style="font-size:.5rem;font-weight:800;padding:1px 5px;border-radius:100px;background:rgba(255,255,255,.25);letter-spacing:.5px;">AI</span>
+                </button>
                 <button class="btn btn-secondary btn-sm" onclick="clearDraw()" title="Xóa vùng đang vẽ">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.49"/></svg>
                     Xóa vùng
@@ -585,6 +593,29 @@ $jsTaskTypeColors = json_encode([
                 <div class="draw-rect" id="drawRect" style="display:none;"></div>
             </div>
             <span class="canvas-hint">🖱 Kéo để vẽ vùng</span>
+            <!-- AI Segment overlay canvas -->
+            <canvas id="aiSegCanvas"
+                    style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;display:none;"
+                    aria-hidden="true"></canvas>
+        </div>
+
+        <!-- AI loading indicator -->
+        <div id="aiSegLoading" style="display:none;padding:10px 16px;background:rgba(123,47,190,.12);border-top:1px solid rgba(123,47,190,.2);">
+            <span style="font-size:.82rem;font-weight:700;color:#a855f7;">
+                🤖 AI đang phân tích<span class="ai-dots-anim"></span>
+            </span>
+        </div>
+
+        <!-- AI Segment region sidebar (collapsible) -->
+        <div id="aiSegSidebarWrap" style="display:none;border-top:1px solid var(--border);padding:14px 16px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                <span style="font-weight:700;font-size:.85rem;">🗺️ Vùng AI phát hiện</span>
+                <div style="display:flex;gap:6px;">
+                    <span id="aiRegionCount" class="badge badge-gray">0 vùng</span>
+                    <button class="btn btn-ghost btn-sm btn-icon" onclick="clearAiSegment()" title="Xóa overlay AI">✕</button>
+                </div>
+            </div>
+            <div id="aiSegRegionList" style="display:flex;flex-direction:column;gap:6px;"></div>
         </div>
     </div>
 
@@ -1332,6 +1363,29 @@ document.addEventListener('DOMContentLoaded', () => {
     <?php if ($selectedPageId): ?>
     selectPage(<?= $selectedPageId ?>);
     <?php endif; ?>
+
+    // ── Nhận vùng từ ai/segment.php — được lưu vào sessionStorage trước khi redirect ──
+    const segData = sessionStorage.getItem('ai_segment_regions');
+    if (segData) {
+        try {
+            const parsed = JSON.parse(segData);
+            sessionStorage.removeItem('ai_segment_regions'); // Xóa ngay sau khi đọc
+            if (parsed.regions && parsed.regions.length && parsed.page_id) {
+                const targetPid = parseInt(parsed.page_id);
+                const pageExists = PAGES.find(p => p.id === targetPid);
+                if (pageExists) {
+                    // Chọn trang đúng nếu chưa được chọn
+                    if (selectedPageId !== targetPid) selectPage(targetPid);
+                    // Đợi ảnh load rồi mới render vùng
+                    setTimeout(() => {
+                        renderAiSegment(parsed.regions);
+                        showToast(`🤖 Đã nhận ${parsed.regions.length} vùng từ AI Phân Đoạn!`, 'success');
+                        document.getElementById('aiSegSidebarWrap')?.scrollIntoView({ behavior:'smooth', block:'start' });
+                    }, 700);
+                }
+            }
+        } catch(e) { /* bỏ qua lỗi parse */ }
+    }
 });
 
 /* Close review modal on backdrop click */
@@ -1355,6 +1409,254 @@ function downloadMultipleFiles(urls) {
         }, index * 200); // 200ms delay between each download to prevent browser blocking
     });
 }
+/* ── AI Segment Integration in Tasks.php ── */
+const AI_TYPE_COLORS = {
+    background:  { fill:'rgba(135,206,235,0.35)', stroke:'#87CEEB' },
+    character:   { fill:'rgba(255,99,71,0.35)',   stroke:'#FF6347' },
+    effects:     { fill:'rgba(255,215,0,0.35)',   stroke:'#FFD700' },
+    shading:     { fill:'rgba(144,238,144,0.35)', stroke:'#90EE90' },
+    text_bubble: { fill:'rgba(186,85,211,0.35)',  stroke:'#BA55D3' },
+};
+const AI_TASK_LABELS = {
+    background:'Phông nền', shading:'Đổ bóng',
+    effects:'Hiệu ứng', lettering:'Chữ/Thoại', cleanup:'Đi nét'
+};
+
+let aiSegRegions = [];
+let aiSegHidden  = new Set();
+
+async function runAiSegment() {
+    if (!selectedPageId) {
+        showToast('Vui lòng chọn trang trước.', 'error'); return;
+    }
+    const img = document.getElementById('pageImage');
+    if (!img || img.style.display === 'none') {
+        showToast('Trang này chưa có ảnh để phân tích.', 'error'); return;
+    }
+
+    // Hiện loading rõ ràng
+    document.getElementById('aiSegLoading').style.display = 'block';
+    const btnAi = document.getElementById('btnAiSegment');
+    btnAi.disabled = true;
+    btnAi.innerHTML = '⏳ Đang phân tích…';
+    clearAiSegment();
+
+    try {
+        const res  = await fetch('<?= BASE_URL ?>api/ai_segment.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ page_id: selectedPageId })
+        });
+        const data = await res.json();
+
+        document.getElementById('aiSegLoading').style.display = 'none';
+        btnAi.disabled = false;
+        btnAi.innerHTML = '🤖 AI Phân đoạn <span style="font-size:.5rem;font-weight:800;padding:1px 5px;border-radius:100px;background:rgba(255,255,255,.25);letter-spacing:.5px;">AI</span>';
+
+        if (data.success && data.regions && data.regions.length) {
+            renderAiSegment(data.regions);
+            showToast('🤖 AI phát hiện ' + data.regions.length + ' vùng!', 'success');
+        } else {
+            showToast(data.message || 'AI không phân tích được. Thử lại.', 'error');
+        }
+    } catch (err) {
+        document.getElementById('aiSegLoading').style.display = 'none';
+        btnAi.disabled = false;
+        btnAi.innerHTML = '🤖 AI Phân đoạn <span style="font-size:.5rem;font-weight:800;padding:1px 5px;border-radius:100px;background:rgba(255,255,255,.25);letter-spacing:.5px;">AI</span>';
+        showToast('Lỗi kết nối: ' + err.message, 'error');
+    }
+}
+
+function renderAiSegment(regions) {
+    aiSegRegions = regions;
+    aiSegHidden  = new Set();
+
+    // Show canvas overlay
+    const img    = document.getElementById('pageImage');
+    const canvas = document.getElementById('aiSegCanvas');
+    if (!img || !canvas) return;
+    canvas.style.display  = 'block';
+    canvas.style.pointerEvents = 'auto';
+    
+    // Đồng bộ CSS để canvas đè khít lên ảnh thực tế trên trình duyệt
+    canvas.style.position = 'absolute';
+    canvas.style.left     = img.offsetLeft + 'px';
+    canvas.style.top      = img.offsetTop + 'px';
+    canvas.style.width    = img.offsetWidth + 'px';
+    canvas.style.height   = img.offsetHeight + 'px';
+
+    // Đồng bộ kích thước vẽ trong bằng kích thước tự nhiên của ảnh gốc
+    canvas.width  = img.naturalWidth  || 512;
+    canvas.height = img.naturalHeight || 512;
+
+    drawAiCanvas();
+
+    // Canvas click
+    canvas.onclick = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        // Tính tỷ lệ phần trăm theo kích thước hiển thị thực tế (rect.width/height)
+        const px   = ((e.clientX - rect.left) / rect.width)  * 100;
+        const py   = ((e.clientY - rect.top)  / rect.height) * 100;
+        let hit = null, hitArea = Infinity;
+        aiSegRegions.forEach(r => {
+            if (aiSegHidden.has(r.id)) return;
+            if (px >= r.x && px <= r.x+r.width && py >= r.y && py <= r.y+r.height) {
+                const area = r.width*r.height;
+                if (area < hitArea) { hit = r.id; hitArea = area; }
+            }
+        });
+        if (hit !== null) highlightAiRegion(hit);
+    };
+
+    // Sidebar
+    buildAiSidebar();
+    document.getElementById('aiSegSidebarWrap').style.display = 'block';
+    document.getElementById('aiRegionCount').textContent = regions.length + ' vùng';
+}
+
+function drawAiCanvas() {
+    const canvas = document.getElementById('aiSegCanvas');
+    const img    = document.getElementById('pageImage');
+    if (!canvas || !img) return;
+
+    // Đồng bộ CSS để canvas đè khít lên ảnh thực tế trên trình duyệt
+    canvas.style.position = 'absolute';
+    canvas.style.left     = img.offsetLeft + 'px';
+    canvas.style.top      = img.offsetTop + 'px';
+    canvas.style.width    = img.offsetWidth + 'px';
+    canvas.style.height   = img.offsetHeight + 'px';
+
+    // Đồng bộ kích thước vẽ trong bằng kích thước tự nhiên của ảnh gốc
+    canvas.width  = img.naturalWidth  || 512;
+    canvas.height = img.naturalHeight || 512;
+
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const W = canvas.width, H = canvas.height;
+
+    aiSegRegions.forEach(r => {
+        if (aiSegHidden.has(r.id)) return;
+        const c = AI_TYPE_COLORS[r.type] || { fill:'rgba(200,200,200,0.3)', stroke:'#ccc' };
+        const px = (r.x/100)*W, py = (r.y/100)*H;
+        const pw = (r.width/100)*W, ph = (r.height/100)*H;
+
+        ctx.fillStyle   = c.fill;
+        ctx.fillRect(px, py, pw, ph);
+        ctx.strokeStyle = c.stroke;
+        ctx.lineWidth   = 2;
+        ctx.setLineDash([4,3]);
+        ctx.strokeRect(px, py, pw, ph);
+        ctx.setLineDash([]);
+
+        // Label
+        const lbl  = (r.label||'').slice(0,18);
+        const fs   = Math.max(10, Math.min(13, pw/8));
+        ctx.font   = `bold ${fs}px Inter,sans-serif`;
+        const tw   = ctx.measureText(lbl).width;
+        ctx.fillStyle = c.stroke;
+        ctx.beginPath(); ctx.roundRect(px+2, py+2, tw+10, fs+8, 4); ctx.fill();
+        ctx.fillStyle = '#0d0d1a';
+        ctx.fillText(lbl, px+7, py+2+fs);
+    });
+}
+
+function buildAiSidebar() {
+    const list = document.getElementById('aiSegRegionList');
+    if (!list) return;
+    list.innerHTML = '';
+
+    aiSegRegions.forEach(r => {
+        const c = AI_TYPE_COLORS[r.type] || { stroke:'#ccc' };
+        const div = document.createElement('div');
+        div.id = 'ai-seg-item-' + r.id;
+        div.style.cssText = 'padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);';
+        div.innerHTML = `
+            <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:7px;">
+                <label style="display:flex;align-items:center;gap:5px;cursor:pointer;flex-shrink:0;margin-top:2px;">
+                    <input type="checkbox" checked
+                           style="accent-color:#7B2FBE;" 
+                           onchange="toggleAiRegion(${r.id},!this.checked)">
+                    <span style="width:10px;height:10px;border-radius:50%;background:${c.stroke};display:inline-block;"></span>
+                </label>
+                <div style="flex:1;cursor:pointer;" onclick="highlightAiRegion(${r.id})">
+                    <div style="font-weight:700;font-size:.83rem;margin-bottom:3px;">${r.label}</div>
+                    <div style="display:flex;gap:6px;align-items:center;">
+                        <span style="font-size:.63rem;font-weight:700;padding:1px 6px;border-radius:100px;border:1px solid ${c.stroke};color:${c.stroke};">${r.type}</span>
+                        <span style="font-size:.7rem;color:var(--text-muted);">${Math.round(r.confidence*100)}%</span>
+                    </div>
+                </div>
+            </div>
+            <button onclick="useAiRegion(${r.id})" 
+                    style="width:100%;padding:6px;border-radius:6px;background:rgba(123,47,190,.15);border:1px solid rgba(123,47,190,.35);color:#a855f7;font-size:.76rem;font-weight:700;cursor:pointer;">
+                ➕ Dùng vùng này
+            </button>
+        `;
+        list.appendChild(div);
+    });
+}
+
+function toggleAiRegion(id, hide) {
+    if (hide) aiSegHidden.add(id); else aiSegHidden.delete(id);
+    drawAiCanvas();
+}
+
+function highlightAiRegion(id) {
+    document.getElementById('ai-seg-item-' + id)
+        ?.scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+
+function useAiRegion(id) {
+    const r = aiSegRegions.find(x => x.id === id);
+    if (!r) return;
+
+    // FIX: Cập nhật biến `region` toàn cục — quan trọng để submitTask() hoạt động
+    region = { x: r.x, y: r.y, w: r.width, h: r.height };
+
+    // Fill task form fields
+    document.getElementById('fieldRegionX').value = r.x;
+    document.getElementById('fieldRegionY').value = r.y;
+    document.getElementById('fieldRegionW').value = r.width;
+    document.getElementById('fieldRegionH').value = r.height;
+    const taskTypeEl = document.getElementById('fieldTaskType');
+    if (taskTypeEl) {
+        taskTypeEl.value = r.suggested_task;
+        if (typeof updateTypeColor === 'function') updateTypeColor(r.suggested_task);
+    }
+    // Hiện task form panel
+    const panel = document.getElementById('taskFormPanel');
+    if (panel) {
+        panel.classList.add('visible');
+        document.getElementById('waitingState').style.display = 'none';
+    }
+    // Cập nhật hiển thị toạ độ
+    const coordEl = document.getElementById('regionCoords');
+    if (coordEl) coordEl.textContent = `x:${r.x.toFixed(1)}% y:${r.y.toFixed(1)}% w:${r.width.toFixed(1)}% h:${r.height.toFixed(1)}% (AI)`;
+    document.getElementById('fieldPageId').value = selectedPageId;
+    showToast('✅ Đã điền vùng AI vào form giao việc!', 'success');
+    // Scroll đến sidebar form
+    document.getElementById('tasksSidebar')?.scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
+function clearAiSegment() {
+    aiSegRegions = [];
+    aiSegHidden  = new Set();
+    const canvas = document.getElementById('aiSegCanvas');
+    if (canvas) {
+        canvas.style.display = 'none';
+        canvas.style.pointerEvents = 'none';
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+    }
+    document.getElementById('aiSegSidebarWrap').style.display = 'none';
+    document.getElementById('aiSegRegionList').innerHTML = '';
+}
+
+/* Dots animation CSS (inline for tasks.php) */
+(function(){
+    const s = document.createElement('style');
+    s.textContent = `.ai-dots-anim::after{content:'';animation:aidots 1.4s infinite}@keyframes aidots{0%{content:''}33%{content:'.'}66%{content:'..'}100%{content:'...'}`;
+    document.head.appendChild(s);
+})();
 </script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

@@ -2,16 +2,17 @@
 require_once __DIR__ . '/constants.php';
 
 /**
- * Kết nối CSDL và trả về instance PDO
+ * Kết nối CSDL và trả về instance PDO.
+ * Thông tin kết nối được đọc từ file .env (qua hàm env()).
  * @return PDO
  */
 function getDB() {
     static $pdo = null;
     if ($pdo === null) {
-        $host = 'localhost';
-        $db   = 'manga_system';
-        $user = 'root';
-        $pass = ''; // Mật khẩu rỗng mặc định của Laragon
+        $host    = env('DB_HOST', 'localhost');
+        $db      = env('DB_NAME', 'manga_system');
+        $user    = env('DB_USER', 'root');
+        $pass    = env('DB_PASS', '');
         $charset = 'utf8mb4';
 
         $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
@@ -37,3 +38,4 @@ function getDB() {
     }
     return $pdo;
 }
+

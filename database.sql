@@ -273,3 +273,19 @@ INSERT INTO notifications (id, user_id, type, message, is_read, link) VALUES
 INSERT INTO defenses (id, mangaka_id, chapter_id, manuscript_id, reason, status, created_at, updated_at) VALUES
 (1, 1, 3, 2, 'Kính gửi Ban Biên Tập, tôi xin giải trình về việc chỉnh sửa lại toàn bộ các khung hình chiến đấu ở trang 12 và 13 theo đúng góp ý của Biên tập viên ở phiên bản trước. Tôi cũng đã nâng cấp chi tiết background cảnh đổ nát và cải thiện phần đi nét của nhân vật chính để tăng tính kịch tính cho phân cảnh cao trào. Rất mong Biên tập viên xem xét lại và thông qua bản thảo này để kịp tiến độ xuất bản tuần tới. Xin chân thành cảm ơn!', 'pending', '2026-06-23 10:00:00', '2026-06-23 10:00:00'),
 (2, 1, 2, 1, 'Bản thảo chương 42 bị hệ thống đánh dấu từ chối ban đầu là do lỗi trùng lặp tệp tin khi upload hai lần liên tiếp. Tôi xin đính kèm bản giải trình này cùng tệp tin chính xác nhất đã được tinh chỉnh phần hiệu ứng tô bóng. Kính mong Biên tập viên phê duyệt để chúng tôi thực hiện các chương tiếp theo.', 'approved', '2026-06-15 09:00:00', '2026-06-16 14:00:00');
+
+-- ══════════════════════════════════════════════════════
+-- AI TOOLS — Bảng lưu log gọi API AI
+-- ══════════════════════════════════════════════════════
+DROP TABLE IF EXISTS ai_logs;
+CREATE TABLE ai_logs (
+    id          INT AUTO_INCREMENT PRIMARY KEY,
+    user_id     INT,
+    type        ENUM('colorize','segment') NOT NULL,
+    input_file  VARCHAR(255) DEFAULT NULL,
+    result_file VARCHAR(255) DEFAULT NULL,
+    api_used    VARCHAR(50)  DEFAULT NULL,
+    metadata    JSON         DEFAULT NULL,
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_ai_logs_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
