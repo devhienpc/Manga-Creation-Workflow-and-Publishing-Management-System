@@ -8,11 +8,11 @@ require_once __DIR__ . '/../includes/layout.php';
 $db  = getDB();
 $uid = $currentUser['id'];
 
-// Lấy danh sách chapters + pages của mangaka này (cho dropdown)
+// Lấy danh sách series + chapters + pages của mangaka này (cho dropdown)
 $stmt = $db->prepare(
-    "SELECT c.id AS chapter_id, c.chapter_number, c.title AS chapter_title,
-            p.id AS page_id, p.page_number, p.original_file,
-            s.title AS series_title
+    "SELECT s.id AS series_id, s.title AS series_title,
+            c.id AS chapter_id, c.chapter_number, c.title AS chapter_title,
+            p.id AS page_id, p.page_number, p.original_file
      FROM chapters c
      JOIN series  s ON s.id = c.series_id
      JOIN pages   p ON p.chapter_id = c.id
@@ -22,27 +22,47 @@ $stmt = $db->prepare(
 $stmt->execute([$uid]);
 $allPages = $stmt->fetchAll();
 
-// Group by chapter for dropdown — chỉ lấy trang có file thực sự tồn tại
-$chapterPages = [];
+// Group theo series > chapter > pages — chỉ lấy trang có file thực sự tồn tại
+$seriesData   = [];   // [ series_id => [ 'title'=>..., 'chapters'=>[ chapter_id => [...] ] ] ]
+$chapterPages = [];   // flat map chapter_id => data (dùng cho JS tương thích cũ)
 $projectRoot  = dirname(__DIR__);
 foreach ($allPages as $row) {
     // Chuẩn hóa path: thay backslash -> forward slash, xóa leading slash
     $normalizedPath = str_replace('\\', '/', ltrim($row['original_file'], '/\\'));
     $row['original_file'] = $normalizedPath;
-    
+
     // Bỏ qua file không tồn tại trên disk
     if (!file_exists($projectRoot . '/' . $normalizedPath)) {
         continue;
     }
-    
-    $key = $row['chapter_id'];
-    if (!isset($chapterPages[$key])) {
-        $chapterPages[$key] = [
-            'chapter_title' => "Chương {$row['chapter_number']} — {$row['chapter_title']} ({$row['series_title']})",
-            'pages' => [],
+
+    $sid = $row['series_id'];
+    $cid = $row['chapter_id'];
+
+    // Group theo series
+    if (!isset($seriesData[$sid])) {
+        $seriesData[$sid] = [
+            'series_title' => $row['series_title'],
+            'chapters'     => [],
         ];
     }
-    $chapterPages[$key]['pages'][] = $row;
+    if (!isset($seriesData[$sid]['chapters'][$cid])) {
+        $seriesData[$sid]['chapters'][$cid] = [
+            'chapter_title' => "Chương {$row['chapter_number']} — {$row['chapter_title']}",
+            'pages'         => [],
+        ];
+    }
+    $seriesData[$sid]['chapters'][$cid]['pages'][] = $row;
+
+    // Flat map (dùng cho JS xử lý trang)
+    if (!isset($chapterPages[$cid])) {
+        $chapterPages[$cid] = [
+            'chapter_title' => "Chương {$row['chapter_number']} — {$row['chapter_title']} ({$row['series_title']})",
+            'series_id'     => $sid,
+            'pages'         => [],
+        ];
+    }
+    $chapterPages[$cid]['pages'][] = $row;
 }
 ?>
 
@@ -74,32 +94,7 @@ foreach ($allPages as $row) {
     .segment-layout { grid-template-columns: 1fr; }
 }
 
-/* Tab switcher */
-.tab-switcher {
-    display: flex; gap: 0; border: 1px solid var(--border);
-    border-radius: 8px; overflow: hidden; margin-bottom: 18px;
-}
-.tab-btn {
-    flex: 1; padding: 10px; font-size: .83rem; font-weight: 700;
-    background: var(--bg-input); border: none; color: var(--text-muted);
-    cursor: pointer; transition: background .2s, color .2s;
-}
-.tab-btn.active { background: var(--ai-purple); color: #fff; }
-.tab-btn:not(:last-child) { border-right: 1px solid var(--border); }
 
-/* Upload zone */
-.upload-zone-sm {
-    border: 2px dashed var(--border); border-radius: 10px;
-    padding: 22px 16px; text-align: center;
-    cursor: pointer; transition: border-color .2s, background .2s;
-    background: var(--bg-input); position: relative; overflow: hidden;
-    margin-bottom: 14px;
-}
-.upload-zone-sm:hover, .upload-zone-sm.drag-over {
-    border-color: var(--ai-purple); background: var(--ai-purple-dim);
-}
-.upload-zone-sm input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-.upload-zone-sm p { font-size: .82rem; color: var(--text-muted); margin: 4px 0 0; }
 
 /* Canvas area */
 .seg-canvas-wrap {
@@ -239,38 +234,26 @@ foreach ($allPages as $row) {
 <!-- ═══════════════════ CỘT TRÁI: Canvas ═══════════════════ -->
 <div>
 
-    <!-- Tabs -->
-    <div class="tab-switcher" id="tabSwitcher">
-        <button class="tab-btn active" id="tabUpload" onclick="switchTab('upload')">📤 Upload ảnh</button>
-        <button class="tab-btn" id="tabPage" onclick="switchTab('page')">📄 Chọn từ DB</button>
-    </div>
-
-    <!-- Tab: Upload -->
-    <div id="panelUpload">
-        <div class="upload-zone-sm" id="uploadZone"
-             ondragover="event.preventDefault();this.classList.add('drag-over')"
-             ondragleave="this.classList.remove('drag-over')"
-             ondrop="handleDrop(event)">
-            <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp"
-                   onchange="handleFileSelect(this)">
-            <span style="font-size:2rem;">🖼️</span>
-            <p>Kéo ảnh trang manga vào đây hoặc click để chọn</p>
-            <p>JPG, PNG, WebP — tối đa 10MB</p>
-        </div>
-        <p id="uploadFileName" style="font-size:.8rem;color:var(--ai-purple);font-weight:600;margin-bottom:8px;display:none;"></p>
-    </div>
-
-    <!-- Tab: Chọn từ DB -->
-    <div id="panelPage" style="display:none; margin-bottom: 14px;">
+    <!-- Chọn từ DB -->
+    <div id="panelPage" style="margin-bottom: 14px;">
+        <!-- Bước 1: Chọn truyện -->
         <div class="form-group">
-            <label class="form-label">Chương</label>
-            <select id="chapterSelect" class="form-control" onchange="loadPagesForChapter(this.value)">
-                <option value="">— Chọn chương —</option>
-                <?php foreach ($chapterPages as $chId => $ch): ?>
-                <option value="<?= $chId ?>"><?= htmlspecialchars($ch['chapter_title']) ?></option>
+            <label class="form-label">Truyện</label>
+            <select id="seriesSelect" class="form-control" onchange="loadChaptersForSeries(this.value)">
+                <option value="">— Chọn truyện —</option>
+                <?php foreach ($seriesData as $sid => $s): ?>
+                <option value="<?= $sid ?>"><?= htmlspecialchars($s['series_title']) ?></option>
                 <?php endforeach; ?>
             </select>
         </div>
+        <!-- Bước 2: Chọn chương (ẩn cho đến khi chọn truyện) -->
+        <div class="form-group" id="chapterSelectWrap" style="display:none;">
+            <label class="form-label">Chương</label>
+            <select id="chapterSelect" class="form-control" onchange="loadPagesForChapter(this.value)">
+                <option value="">— Chọn chương —</option>
+            </select>
+        </div>
+        <!-- Bước 3: Chọn trang -->
         <div class="form-group" id="pageSelectWrap" style="display:none;">
             <label class="form-label">Trang</label>
             <select id="pageSelect" class="form-control">
@@ -362,9 +345,7 @@ foreach ($allPages as $row) {
                     onmouseout="this.style.opacity='1';this.style.transform=''">
                 ✅ Dùng vùng đã chọn → Giao Task
             </button>
-            <p id="segActionNote" style="font-size:.73rem;color:var(--text-muted);margin-top:8px;text-align:center;display:none;">
-                ⚠️ Chỉ hoạt động khi chọn trang từ DB (tab "Chọn từ DB")
-            </p>
+
         </div>
     </div>
 
@@ -391,7 +372,8 @@ foreach ($allPages as $row) {
 </div><!-- /.segment-layout -->
 
 <?php
-$pagesJson = json_encode($chapterPages, JSON_UNESCAPED_UNICODE);
+$pagesJson  = json_encode($chapterPages,  JSON_UNESCAPED_UNICODE);
+$seriesJson = json_encode($seriesData,    JSON_UNESCAPED_UNICODE);
 require_once __DIR__ . '/../includes/footer.php';
 ?>
 
@@ -399,45 +381,53 @@ require_once __DIR__ . '/../includes/footer.php';
 <script>
 /* ── Data from PHP ── */
 const chapterPagesData = <?= $pagesJson ?>;
+const seriesPageData   = <?= $seriesJson ?>;
 
 /* ── State ── */
-let currentTab  = 'upload';
-let selectedFile = null;
+const currentTab  = 'page';
 let currentPageId = 0;
 
-/* ── Tab switch ── */
-function switchTab(tab) {
-    currentTab = tab;
-    document.getElementById('tabUpload').classList.toggle('active', tab === 'upload');
-    document.getElementById('tabPage').classList.toggle('active',   tab === 'page');
-    document.getElementById('panelUpload').style.display = tab === 'upload' ? 'block' : 'none';
-    document.getElementById('panelPage').style.display   = tab === 'page'   ? 'block' : 'none';
-    updateAnalyzeBtn();
-}
+/* ── Series → Chapter → Page cascading dropdowns ── */
+function loadChaptersForSeries(sid) {
+    currentPageId = 0;
+    const chapterWrap = document.getElementById('chapterSelectWrap');
+    const chapterSel  = document.getElementById('chapterSelect');
+    const pageWrap    = document.getElementById('pageSelectWrap');
+    const pageSel     = document.getElementById('pageSelect');
+    const preview     = document.getElementById('dbPagePreview');
 
-/* ── File upload ── */
-function handleFileSelect(input) {
-    const f = input.files[0]; if (!f) return;
-    setFile(f);
-}
-function handleDrop(e) {
-    e.preventDefault();
-    document.getElementById('uploadZone').classList.remove('drag-over');
-    const f = e.dataTransfer.files[0]; if (f) setFile(f);
-}
-function setFile(f) {
-    const allowed = ['image/jpeg', 'image/png', 'image/webp'];
-    if (!allowed.includes(f.type)) { showAlert('Chỉ hỗ trợ JPG, PNG, WebP.'); return; }
-    if (f.size > 10 * 1024 * 1024) { showAlert('File quá lớn (tối đa 10MB).'); return; }
+    // Reset cấp dưới
+    chapterSel.innerHTML = '<option value="">— Chọn chương —</option>';
+    pageSel.innerHTML    = '<option value="">— Chọn trang —</option>';
+    pageWrap.style.display = 'none';
+    preview.style.display  = 'none';
     hideAlert();
-    selectedFile = f;
-    const fn = document.getElementById('uploadFileName');
-    fn.textContent = '📎 ' + f.name + ' (' + (f.size / 1024).toFixed(0) + ' KB)';
-    fn.style.display = 'block';
+
+    if (!sid || !seriesPageData[sid]) {
+        chapterWrap.style.display = 'none';
+        updateAnalyzeBtn();
+        return;
+    }
+
+    const chapters = seriesPageData[sid].chapters;
+    const chapterIds = Object.keys(chapters);
+    if (chapterIds.length === 0) {
+        chapterWrap.style.display = 'none';
+        showAlert('Truyện này chưa có chương nào có ảnh.');
+        updateAnalyzeBtn();
+        return;
+    }
+
+    chapterWrap.style.display = 'block';
+    chapterIds.forEach(cid => {
+        const opt = document.createElement('option');
+        opt.value = cid;
+        opt.textContent = chapters[cid].chapter_title;
+        chapterSel.appendChild(opt);
+    });
     updateAnalyzeBtn();
 }
 
-/* ── Chapter/page dropdown ── */
 function loadPagesForChapter(chId) {
     currentPageId = 0;
     const pageWrap = document.getElementById('pageSelectWrap');
@@ -451,7 +441,7 @@ function loadPagesForChapter(chId) {
         updateAnalyzeBtn();
         return;
     }
-    
+
     const pages = chapterPagesData[chId].pages;
     if (pages.length === 0) {
         pageWrap.style.display = 'none';
@@ -459,7 +449,7 @@ function loadPagesForChapter(chId) {
         updateAnalyzeBtn();
         return;
     }
-    
+
     pageWrap.style.display = 'block';
     pages.forEach(p => {
         const opt = document.createElement('option');
@@ -485,10 +475,7 @@ function loadPagesForChapter(chId) {
 }
 
 function updateAnalyzeBtn() {
-    let ok = false;
-    if (currentTab === 'upload' && selectedFile) ok = true;
-    if (currentTab === 'page'   && currentPageId)  ok = true;
-    document.getElementById('analyzeBtn').disabled = !ok;
+    document.getElementById('analyzeBtn').disabled = !currentPageId;
 }
 
 /* ── Analyze ── */
@@ -496,20 +483,13 @@ async function startAnalyze() {
     hideAlert();
     setAnalyzing(true);
 
-    let body, method, headers = {};
-
-    if (currentTab === 'upload' && selectedFile) {
-        const fd = new FormData();
-        fd.append('file', selectedFile);
-        body   = fd;
-        method = 'POST';
-    } else if (currentTab === 'page' && currentPageId) {
-        body    = JSON.stringify({ page_id: currentPageId });
-        method  = 'POST';
-        headers = { 'Content-Type': 'application/json' };
-    } else {
-        showAlert('Vui lòng chọn ảnh hoặc trang.'); setAnalyzing(false); return;
+    if (!currentPageId) {
+        showAlert('Vui lòng chọn truyện, chương và trang.'); setAnalyzing(false); return;
     }
+
+    const body    = JSON.stringify({ page_id: currentPageId });
+    const method  = 'POST';
+    const headers = { 'Content-Type': 'application/json' };
 
     try {
         const res  = await fetch('<?= BASE_URL ?>api/ai_segment.php', { method, headers, body });
@@ -578,25 +558,18 @@ function renderSegmentResult(data) {
         return doRender;   // caller dùng để gọi fallback complete-check
     }
 
-    if (currentTab === 'upload' && selectedFile) {
-        const url    = URL.createObjectURL(selectedFile);
-        const doRend = _whenReady(img, canvas, regions, false);
-        img.src = url;                              // src gán SAU handler
-        if (img.complete && img.naturalWidth) doRend(); // đã cache → fallback
+    // page from DB
+    const pageRow = findPageById(currentPageId);
+    if (pageRow && pageRow.original_file) {
+        let filePath = pageRow.original_file.replace(/\\/g, '/').replace(/^\//, '');
+        const baseUrl = '<?= rtrim(BASE_URL, '/') ?>';
+        const doRend  = _whenReady(img, canvas, regions, true);
+        img.src = baseUrl + '/' + filePath;     // src gán SAU handler
+        if (img.complete && img.naturalWidth) doRend();
     } else {
-        // page from DB
-        const pageRow = findPageById(currentPageId);
-        if (pageRow && pageRow.original_file) {
-            let filePath = pageRow.original_file.replace(/\\/g, '/').replace(/^\//, '');
-            const baseUrl = '<?= rtrim(BASE_URL, '/') ?>';
-            const doRend  = _whenReady(img, canvas, regions, true);
-            img.src = baseUrl + '/' + filePath;     // src gán SAU handler
-            if (img.complete && img.naturalWidth) doRend();
-        } else {
-            // Không có ảnh — render vùng không có ảnh nền
-            canvas.style.display = 'block';
-            _initAndRender(canvas, null, regions);
-        }
+        // Không có ảnh — render vùng không có ảnh nền
+        canvas.style.display = 'block';
+        _initAndRender(canvas, null, regions);
     }
 }
 
@@ -635,19 +608,17 @@ function sendToTasks() {
         return;
     }
 
-    // Tìm chapter_id từ currentPageId (chỉ có khi tab DB)
+    // Tìm chapter_id từ currentPageId
     let chapterId = null;
-    if (currentTab === 'page' && currentPageId) {
-        for (const [chId, ch] of Object.entries(chapterPagesData)) {
-            if (ch.pages.find(p => p.page_id === currentPageId)) {
-                chapterId = parseInt(chId);
-                break;
-            }
+    for (const [chId, ch] of Object.entries(chapterPagesData)) {
+        if (ch.pages.find(p => p.page_id === currentPageId)) {
+            chapterId = parseInt(chId);
+            break;
         }
     }
 
     if (!chapterId || !currentPageId) {
-        showAlert('Tính năng này chỉ hoạt động khi chọn trang từ DB (tab "Chọn từ DB"). Ảnh upload không có page_id để liên kết với Task.');
+        showAlert('Vui lòng chọn trang từ DB trước.');
         return;
     }
 
