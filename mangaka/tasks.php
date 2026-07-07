@@ -24,6 +24,22 @@ $stmt = $db->prepare(
 $stmt->execute([$uid]);
 $allChapters = $stmt->fetchAll();
 
+// Group chapters by series for JS
+$seriesChapters = [];
+foreach ($allChapters as $ch) {
+    $sid = $ch['series_id'];
+    if (!isset($seriesChapters[$sid])) {
+        $seriesChapters[$sid] = [
+            'title'    => $ch['series_title'],
+            'chapters' => [],
+        ];
+    }
+    $seriesChapters[$sid]['chapters'][] = [
+        'id'     => $ch['id'],
+        'label'  => 'Chương ' . $ch['chapter_number'] . ' — ' . $ch['title'],
+    ];
+}
+
 // All assistants (for dropdown)
 $stmt = $db->prepare("SELECT id, username FROM users WHERE role = 'assistant' ORDER BY username");
 $stmt->execute();
@@ -454,33 +470,34 @@ $jsTaskTypeColors = json_encode([
             </div>
         </div>
 
-        <!-- Chapter dropdown -->
-        <div class="selector-bar">
-            <label for="chapterSelect">Chương:</label>
-            <form method="GET" action="" id="chapterForm" style="display:contents;">
-                <select id="chapterSelect" name="chapter_id" class="form-control" style="max-width:340px;"
-                        onchange="this.form.submit()">
-                    <option value="">— Chọn chương —</option>
-                    <?php
-                    $lastSeries = null;
-                    foreach ($allChapters as $ch):
-                        if ($lastSeries !== $ch['series_title']):
-                            if ($lastSeries !== null) echo '</optgroup>';
-                            echo '<optgroup label="' . htmlspecialchars($ch['series_title']) . '">';
-                            $lastSeries = $ch['series_title'];
-                        endif;
-                    ?>
-                    <option value="<?= $ch['id'] ?>"
-                        <?= $ch['id'] == $selectedChapterId ? 'selected' : '' ?>>
-                        Chương <?= $ch['chapter_number'] ?> — <?= htmlspecialchars($ch['title']) ?>
+        <!-- Séries + Chapter dropdown (2-level) -->
+        <div class="selector-bar" style="flex-direction:column;align-items:flex-start;gap:10px;">
+            <!-- Bước 1: Chọn truyện -->
+            <div style="display:flex;align-items:center;gap:12px;width:100%;flex-wrap:wrap;">
+                <label for="seriesFilterSelect" style="white-space:nowrap;">Truyện:</label>
+                <select id="seriesFilterSelect" class="form-control" style="max-width:340px;"
+                        onchange="filterChaptersBySeriesTask(this.value)">
+                    <option value="">— Chọn truyện —</option>
+                    <?php foreach ($seriesChapters as $sid => $s): ?>
+                    <option value="<?= $sid ?>" <?= (in_array($selectedChapterId, array_column($s['chapters'], 'id')) ? 'selected' : '') ?>>
+                        <?= htmlspecialchars($s['title']) ?>
                     </option>
-                    <?php endforeach;
-                    if ($lastSeries !== null) echo '</optgroup>'; ?>
+                    <?php endforeach; ?>
                 </select>
-                <?php if ($selectedPageId): ?>
-                <input type="hidden" name="page_id" value="<?= $selectedPageId ?>">
-                <?php endif; ?>
-            </form>
+            </div>
+            <!-- Bước 2: Chọn chương (hiện sau khi chọn truyện) -->
+            <div id="chapterSelectWrap" style="display:<?= $selectedChapterId ? 'flex' : 'none' ?>;align-items:center;gap:12px;width:100%;flex-wrap:wrap;">
+                <label for="chapterSelect" style="white-space:nowrap;">Chương:</label>
+                <form method="GET" action="" id="chapterForm" style="display:contents;">
+                    <select id="chapterSelect" name="chapter_id" class="form-control" style="max-width:340px;"
+                            onchange="this.form.submit()">
+                        <option value="">— Chọn chương —</option>
+                    </select>
+                    <?php if ($selectedPageId): ?>
+                    <input type="hidden" name="page_id" value="<?= $selectedPageId ?>">
+                    <?php endif; ?>
+                </form>
+            </div>
         </div>
 
         <?php if ($selectedChapterId && empty($pages)): ?>
@@ -935,6 +952,33 @@ const TYPE_COLORS= <?= $jsTaskTypeColors ?>;
 const BASE       = <?= json_encode(BASE_URL) ?>;
 const CHAPTER_ID = <?= $selectedChapterId ?: 0 ?>;
 const SERIES_ID  = <?= $jsSeriesId ?? 0 ?>;
+const SERIES_CHAPTERS = <?= json_encode($seriesChapters) ?>;
+
+/* ── Series / Chapter Filter ── */
+function filterChaptersBySeriesTask(sid) {
+    const wrap = document.getElementById('chapterSelectWrap');
+    const cSel = document.getElementById('chapterSelect');
+    if (!sid || !SERIES_CHAPTERS[sid]) {
+        wrap.style.display = 'none';
+        cSel.innerHTML = '<option value="">— Chọn chương —</option>';
+        return;
+    }
+    wrap.style.display = 'flex';
+    let html = '<option value="">— Chọn chương —</option>';
+    SERIES_CHAPTERS[sid].chapters.forEach(ch => {
+        const selected = (ch.id == CHAPTER_ID) ? 'selected' : '';
+        html += `<option value="${ch.id}" ${selected}>${ch.label}</option>`;
+    });
+    cSel.innerHTML = html;
+}
+
+// On load, if series is selected but chapters aren't populated (on first load without Chapter ID)
+document.addEventListener('DOMContentLoaded', () => {
+    const sSel = document.getElementById('seriesFilterSelect');
+    if (sSel && sSel.value) {
+        filterChaptersBySeriesTask(sSel.value);
+    }
+});
 
 /* ── State ── */
 let selectedPageId = <?= $selectedPageId ?: 0 ?>;
