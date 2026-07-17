@@ -526,13 +526,14 @@ $nowYear  = (int)date('Y');
                 </div>
 
                 <!-- Table nhập votes -->
-                <label style="font-size:0.72rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.05em; display:block; margin-bottom:8px;">Số votes từng series</label>
+                <label style="font-size:0.72rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.05em; display:block; margin-bottom:8px;">Số votes & Doanh thu từng series</label>
                 <div style="max-height:320px; overflow-y:auto; border:1px solid var(--border); border-radius:8px; margin-bottom:16px;">
                     <table class="vote-input-table">
                         <thead>
                             <tr>
                                 <th>Bộ truyện</th>
                                 <th style="text-align:right;">Votes</th>
+                                <th style="text-align:right; width: 90px;">Doanh thu (₫)</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -552,6 +553,14 @@ $nowYear  = (int)date('Y');
                                            placeholder="0"
                                            value=""
                                            oninput="previewRank()">
+                                </td>
+                                <td style="text-align:right;">
+                                    <input type="number" class="vote-num-input series-revenue-input"
+                                           data-series-id="<?= $ps['id'] ?>"
+                                           min="0" max="999999999"
+                                           placeholder="0"
+                                           value=""
+                                           style="width: 80px; padding: 4px 6px; font-size: 0.8rem; background: var(--bg-input); border: 1px solid var(--border); color: #fff; border-radius: 4px; text-align: right;">
                                 </td>
                             </tr>
                         <?php endforeach; ?>
@@ -649,10 +658,15 @@ function submitVotes() {
 
     if (!confirm(`Xác nhận lưu kết quả bình chọn kỳ "${periodPreview}"?\n\nThao tác này không thể hoàn tác.`)) return;
 
-    const votesData = inputs.map(inp => ({
-        series_id:   parseInt(inp.dataset.seriesId),
-        reader_votes: parseInt(inp.value || '0')
-    }));
+    const votesData = inputs.map(inp => {
+        const seriesId = parseInt(inp.dataset.seriesId);
+        const revInp = document.querySelector(`.series-revenue-input[data-series-id="${seriesId}"]`);
+        return {
+            series_id:    seriesId,
+            reader_votes: parseInt(inp.value || '0'),
+            revenue:      parseFloat(revInp?.value || '0')
+        };
+    });
 
     const btn = document.getElementById('btnSubmitVotes');
     btn.disabled = true;

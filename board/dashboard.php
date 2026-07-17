@@ -17,21 +17,21 @@ require_once __DIR__ . '/../includes/layout.php';
             <p style="color: var(--text-secondary); font-size: 0.9rem; font-weight: 500;">Dự án xin xuất bản</p>
             <div class="stat-number">4</div>
         </div>
-        <div class="stat-icon"><i class="fa-solid fa-scroll"></i></div>
+        <div class="stat-icon"><i class="fi fi-sr-scroll" style="font-size: 1.8rem;"></i></div>
     </div>
     <div class="glass-panel stat-card">
         <div>
             <p style="color: var(--text-secondary); font-size: 0.9rem; font-weight: 500;">Truyện đang xuất bản</p>
             <div class="stat-number">38</div>
         </div>
-        <div class="stat-icon"><i class="fa-solid fa-passport"></i></div>
+        <div class="stat-icon"><i class="fi fi-sr-book-open-reader" style="font-size: 1.8rem;"></i></div>
     </div>
     <div class="glass-panel stat-card">
         <div>
             <p style="color: var(--text-secondary); font-size: 0.9rem; font-weight: 500;">Đánh giá/Bình chọn mở</p>
             <div class="stat-number">2</div>
         </div>
-        <div class="stat-icon"><i class="fa-solid fa-vote-yea"></i></div>
+        <div class="stat-icon"><i class="fi fi-sr-box-ballot" style="font-size: 1.8rem;"></i></div>
     </div>
 </div>
 
@@ -39,7 +39,7 @@ require_once __DIR__ . '/../includes/layout.php';
     <div class="glass-panel data-table-container">
         <div class="table-header">
             <h3>Các bản thảo cần bỏ phiếu thông qua xuất bản</h3>
-            <a href="voting.php" class="link">Chi tiết các lượt bầu chọn <i class="fa-solid fa-arrow-right"></i></a>
+            <a href="voting.php" class="link">Chi tiết các lượt bầu chọn <i class="fi fi-rr-arrow-small-right" style="font-size: 1.1rem; vertical-align: middle;"></i></a>
         </div>
         <table class="table">
             <thead>

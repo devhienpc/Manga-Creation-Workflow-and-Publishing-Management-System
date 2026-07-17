@@ -38,6 +38,14 @@ $menus = [
             ]
         ],
         [
+            'label' => '💰 TÀI CHÍNH',
+            'items' => [
+                ['page' => 'wallet_index', 'label' => '💼 Ví của tôi',  'href' => BASE_URL . 'wallet/index.php',    'icon' => 'wallet'],
+                ['page' => 'wallet_withdraw', 'label' => '💸 Rút tiền',  'href' => BASE_URL . 'wallet/withdraw.php', 'icon' => 'withdraw'],
+                ['page' => 'wallet_withdrawals', 'label' => '📋 Lịch sử rút', 'href' => BASE_URL . 'wallet/withdrawals.php', 'icon' => 'history'],
+            ]
+        ],
+        [
             'label' => 'AI TOOLS',
             'items' => [
                 ['page' => 'ai_colorize', 'label' => 'Tô màu tự động',  'href' => BASE_URL . 'ai/colorize.php', 'icon' => 'zap', 'ai' => true],
@@ -57,7 +65,15 @@ $menus = [
             'items' => [
                 ['page' => 'dashboard', 'label' => 'Dashboard',       'href' => BASE_URL . 'assistant/dashboard.php', 'icon' => 'grid'],
                 ['page' => 'tasks',     'label' => 'Nhiệm vụ của tôi', 'href' => BASE_URL . 'assistant/tasks.php',    'icon' => 'clipboard'],
-                ['page' => 'earnings',  'label' => 'Thu nhập',         'href' => BASE_URL . 'assistant/earnings.php',  'icon' => 'dollar-sign'],
+            ]
+        ],
+        [
+            'label' => '💰 THU NHẬP',
+            'items' => [
+                ['page' => 'wallet_index', 'label' => '💼 Ví của tôi',  'href' => BASE_URL . 'wallet/index.php',    'icon' => 'wallet'],
+                ['page' => 'wallet_withdraw', 'label' => '💸 Rút tiền',  'href' => BASE_URL . 'wallet/withdraw.php', 'icon' => 'withdraw'],
+                ['page' => 'earnings',  'label' => '📋 Bảng lương',     'href' => BASE_URL . 'assistant/earnings.php',  'icon' => 'dollar-sign'],
+                ['page' => 'wallet_withdrawals', 'label' => '📋 Lịch sử rút', 'href' => BASE_URL . 'wallet/withdrawals.php', 'icon' => 'history'],
             ]
         ],
         [
@@ -106,9 +122,11 @@ $menus = [
         [
             'label' => 'QUẢN TRỊ',
             'items' => [
-                ['page' => 'ranking',   'label' => 'Xếp hạng tổng quát', 'href' => BASE_URL . 'board/ranking.php',   'icon' => 'award'],
-                ['page' => 'decisions', 'label' => 'Quyết định xuất bản', 'href' => BASE_URL . 'board/decisions.php', 'icon' => 'check-circle'],
-                ['page' => 'admin_dashboard', 'label' => 'Quản trị hệ thống', 'href' => BASE_URL . 'admin/index.php', 'icon' => 'grid'],
+                ['page' => 'ranking',      'label' => 'Xếp hạng tổng quát', 'href' => BASE_URL . 'board/ranking.php',      'icon' => 'award'],
+                ['page' => 'decisions',    'label' => 'Quyết định xuất bản', 'href' => BASE_URL . 'board/decisions.php',    'icon' => 'check-circle'],
+                ['page' => 'withdrawals',  'label' => '🏦 Quản lý rút tiền',  'href' => BASE_URL . 'admin/withdrawals.php', 'icon' => 'money-check'],
+                ['page' => 'fin_stats',    'label' => '📊 Thống kê tài chính', 'href' => BASE_URL . 'admin/withdrawals.php#tab-stats', 'icon' => 'stats'],
+                ['page' => 'admin_dashboard', 'label' => 'Quản trị hệ thống', 'href' => BASE_URL . 'admin/index.php',     'icon' => 'grid'],
             ]
         ],
         [
@@ -122,35 +140,42 @@ $menus = [
         [
             'label' => 'QUẢN TRỊ HỆ THỐNG',
             'items' => [
-                ['page' => 'admin_dashboard', 'label' => 'Dashboard Admin', 'href' => BASE_URL . 'admin/index.php', 'icon' => 'grid'],
+                ['page' => 'admin_dashboard', 'label' => 'Dashboard Admin',    'href' => BASE_URL . 'admin/index.php',         'icon' => 'grid'],
+                ['page' => 'withdrawals',     'label' => '🏦 Quản lý rút tiền',  'href' => BASE_URL . 'admin/withdrawals.php',   'icon' => 'money-check'],
+                ['page' => 'fin_stats',       'label' => '📊 Thống kê tài chính', 'href' => BASE_URL . 'admin/withdrawals.php#tab-stats', 'icon' => 'stats'],
             ]
         ],
     ],
 ];
 
-// SVG icons helper
+// SVG / Font icons helper
 function navIcon(string $name): string {
     $icons = [
-        'grid'         => '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>',
-        'book'         => '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
-        'check-square' => '<polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
-        'trending-up'  => '<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>',
-        'bell'         => '<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
-        'clipboard'    => '<path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>',
-        'dollar-sign'  => '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
-        'file-text'    => '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>',
-        'activity'     => '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',
-        'shield'       => '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
-        'bar-chart-2'  => '<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>',
-        'award'        => '<circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/>',
-        'check-circle' => '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>',
-        'user-circle'  => '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+        'grid'         => 'fi-rr-apps',
+        'book'         => 'fi-rr-book',
+        'check-square' => 'fi-rr-checkbox',
+        'trending-up'  => 'fi-rr-chart-line-up',
+        'bell'         => 'fi-rr-bell',
+        'clipboard'    => 'fi-rr-clipboard',
+        'dollar-sign'  => 'fi-rr-usd-circle',
+        'file-text'    => 'fi-rr-document',
+        'activity'     => 'fi-rr-pulse',
+        'shield'       => 'fi-rr-shield',
+        'bar-chart-2'  => 'fi-rr-chart-histogram',
+        'award'        => 'fi-rr-award',
+        'check-circle' => 'fi-rr-check-circle',
+        'user-circle'  => 'fi-rr-user',
+        'wallet'       => 'fi-rr-wallet',
+        'money-check'  => 'fi-rr-money-check',
+        'withdraw'     => 'fi-rr-arrow-up-from-bracket',
+        'history'      => 'fi-rr-time-past',
+        'stats'        => 'fi-rr-chart-pie',
         // AI Tools icons
-        'zap'          => '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
-        'cpu'          => '<rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/>',
+        'zap'          => 'fi-rr-bolt',
+        'cpu'          => 'fi-rr-cpu',
     ];
-    $d = $icons[$name] ?? '<circle cx="12" cy="12" r="5"/>';
-    return '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' . $d . '</svg>';
+    $class = $icons[$name] ?? 'fi-rr-circle';
+    return '<i class="fi ' . $class . ' nav-icon" aria-hidden="true"></i>';
 }
 
 $currentMenuGroups = $menus[$role] ?? [];
@@ -212,11 +237,7 @@ $currentMenuGroups = $menus[$role] ?? [];
             </div>
 
             <a href="<?= BASE_URL ?>auth/logout.php" class="logout-btn" title="Đăng xuất">
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                    <polyline points="16 17 21 12 16 7"/>
-                    <line x1="21" y1="12" x2="9" y2="12"/>
-                </svg>
+                <i class="fi fi-rr-exit" style="font-size: 17px; display: inline-flex; align-items: center;"></i>
             </a>
         </div>
     </div>

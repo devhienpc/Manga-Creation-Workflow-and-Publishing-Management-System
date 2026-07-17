@@ -137,7 +137,7 @@ $taskStatusLabels = [
             <p class="text-xs text-muted font-bold" style="text-transform:uppercase; letter-spacing:0.5px;">Nhiệm vụ đang thực hiện</p>
             <div class="stat-number" style="font-size: 2.2rem; font-weight:800; margin-top:5px;"><?= $activeTasksCount ?></div>
         </div>
-        <div class="stat-icon" style="color:#60a5fa; font-size:1.8rem; opacity:0.8;">📋</div>
+        <div class="stat-icon" style="color:#60a5fa; font-size:1.8rem; opacity:0.8; display:flex; align-items:center; justify-content:center;"><i class="fi fi-sr-clipboard"></i></div>
     </div>
     <!-- Completed Pages Count -->
     <div class="card stat-card" style="padding: 20px;">
@@ -145,7 +145,7 @@ $taskStatusLabels = [
             <p class="text-xs text-muted font-bold" style="text-transform:uppercase; letter-spacing:0.5px;">Trang hoàn thành (Tháng <?= $currentMonth ?>)</p>
             <div class="stat-number" style="font-size: 2.2rem; font-weight:800; margin-top:5px; color:#34d399;"><?= $completedPagesMonth ?></div>
         </div>
-        <div class="stat-icon" style="color:#34d399; font-size:1.8rem; opacity:0.8;">🎨</div>
+        <div class="stat-icon" style="color:#34d399; font-size:1.8rem; opacity:0.8; display:flex; align-items:center; justify-content:center;"><i class="fi fi-sr-palette"></i></div>
     </div>
     <!-- Monthly Earnings Preview -->
     <div class="card stat-card" style="padding: 20px;">
@@ -160,7 +160,7 @@ $taskStatusLabels = [
                 <?= $isOfficialEarnings ? '✓ Dữ liệu chính thức' : '* Ước tính (250Kđ/trang)' ?>
             </p>
         </div>
-        <div class="stat-icon" style="color:#fbbf24; font-size:1.8rem; opacity:0.8;">💰</div>
+        <div class="stat-icon" style="color:#fbbf24; font-size:1.8rem; opacity:0.8; display:flex; align-items:center; justify-content:center;"><i class="fi fi-sr-dollar"></i></div>
     </div>
 </div>
 

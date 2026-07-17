@@ -396,7 +396,7 @@ $roleDisplayNames = [
                 <div class="stat-value"><?= $totalUsers ?></div>
                 <div class="stat-change">Người dùng trong hệ thống</div>
             </div>
-            <div class="stat-icon"><i class="fa-solid fa-users"></i></div>
+            <div class="stat-icon"><i class="fi fi-sr-users" style="font-size: 1.8rem;"></i></div>
         </div>
         
         <div class="stat-card" style="--accent: var(--blue); --icon-bg: rgba(59,130,246,0.12);">
@@ -405,7 +405,7 @@ $roleDisplayNames = [
                 <div class="stat-value"><?= $totalSeries ?></div>
                 <div class="stat-change">Được tạo bởi họa sĩ</div>
             </div>
-            <div class="stat-icon"><i class="fa-solid fa-book"></i></div>
+            <div class="stat-icon"><i class="fi fi-sr-book" style="font-size: 1.8rem;"></i></div>
         </div>
         
         <div class="stat-card" style="--accent: var(--green); --icon-bg: rgba(16,185,129,0.12);">
@@ -414,7 +414,7 @@ $roleDisplayNames = [
                 <div class="stat-value"><?= $totalChapters ?></div>
                 <div class="stat-change">Đang trong tiến trình</div>
             </div>
-            <div class="stat-icon"><i class="fa-solid fa-file-invoice"></i></div>
+            <div class="stat-icon"><i class="fi fi-sr-file-invoice" style="font-size: 1.8rem;"></i></div>
         </div>
         
         <div class="stat-card" style="--accent: var(--red); --icon-bg: rgba(230,57,70,0.12);">
@@ -423,7 +423,7 @@ $roleDisplayNames = [
                 <div class="stat-value"><?= $totalTasks ?></div>
                 <div class="stat-change">Đã giao cho trợ lý</div>
             </div>
-            <div class="stat-icon"><i class="fa-solid fa-tasks"></i></div>
+            <div class="stat-icon"><i class="fi fi-sr-list-check" style="font-size: 1.8rem;"></i></div>
         </div>
     </div>
 

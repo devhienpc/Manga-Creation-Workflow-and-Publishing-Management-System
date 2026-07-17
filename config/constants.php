@@ -21,7 +21,7 @@ $relativeRoot = '';
 if (!empty($docRoot) && strpos($projectRoot, $docRoot) === 0) {
     $relativeRoot = substr($projectRoot, strlen($docRoot));
 } else {
-    $relativeRoot = preg_replace('/(config|auth|mangaka|assistant|editor|board|api|includes|admin)\/.*$/i', '', $scriptName);
+    $relativeRoot = preg_replace('/(config|auth|mangaka|assistant|editor|board|api|includes|admin|wallet|finance)\/.*$/i', '', $scriptName);
 }
 $relativeRoot = '/' . ltrim(str_replace('\\', '/', $relativeRoot), '/');
 $relativeRoot = rtrim($relativeRoot, '/') . '/';

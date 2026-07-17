@@ -210,6 +210,140 @@ CREATE INDEX idx_defenses_status ON defenses(status);
 -- editor123: $2y$10$7X7yCaEeGGfiYkeVGuT3NehBHvSmAKxfy3YoTba02obry.S7R.g/2
 -- board123: $2y$10$X33JXtu4FffbnYQocdIAOeN6PMj2xFYk7UA3zHaEqiyUrzdL25BYW
 
+-- ══════════════════════════════════════════════════════
+-- AI TOOLS — Bảng lưu log gọi API AI
+-- ══════════════════════════════════════════════════════
+DROP TABLE IF EXISTS ai_logs;
+CREATE TABLE ai_logs (
+    id          INT AUTO_INCREMENT PRIMARY KEY,
+    user_id     INT,
+    type        ENUM('colorize','segment') NOT NULL,
+    input_file  VARCHAR(255) DEFAULT NULL,
+    result_file VARCHAR(255) DEFAULT NULL,
+    api_used    VARCHAR(50)  DEFAULT NULL,
+    metadata    JSON         DEFAULT NULL,
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_ai_logs_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- VÍ ĐIỆN TỬ
+CREATE TABLE wallets (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT UNIQUE NOT NULL,
+  balance DECIMAL(15,2) DEFAULT 0.00,
+  pending_balance DECIMAL(15,2) DEFAULT 0.00,
+  total_earned DECIMAL(15,2) DEFAULT 0.00,
+  total_withdrawn DECIMAL(15,2) DEFAULT 0.00,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- LỊCH SỬ GIAO DỊCH
+CREATE TABLE transactions (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  wallet_id INT NOT NULL,
+  type ENUM('earn','platform_fee','salary_pay','salary_receive',
+            'withdraw','withdraw_fee','refund','tip') NOT NULL,
+  amount DECIMAL(15,2) NOT NULL,
+  balance_before DECIMAL(15,2) NOT NULL,
+  balance_after DECIMAL(15,2) NOT NULL,
+  description TEXT,
+  reference_id INT DEFAULT NULL,
+  reference_type ENUM('chapter','withdrawal','salary','tip') DEFAULT NULL,
+  status ENUM('pending','completed','failed','cancelled') DEFAULT 'completed',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (wallet_id) REFERENCES wallets(id)
+);
+
+-- YÊU CẦU RÚT TIỀN
+CREATE TABLE withdrawal_requests (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT NOT NULL,
+  amount DECIMAL(15,2) NOT NULL,
+  fee_amount DECIMAL(15,2) NOT NULL DEFAULT 0,
+  net_amount DECIMAL(15,2) NOT NULL,
+  method ENUM('bank_transfer','momo','zalopay','vietqr') NOT NULL,
+  account_name VARCHAR(200) NOT NULL,
+  account_number VARCHAR(50) NOT NULL,
+  bank_name VARCHAR(100) DEFAULT NULL,
+  bank_code VARCHAR(20) DEFAULT NULL,
+  qr_generated VARCHAR(500) DEFAULT NULL,
+  status ENUM('pending','processing','completed','rejected') DEFAULT 'pending',
+  admin_note TEXT DEFAULT NULL,
+  processed_by INT DEFAULT NULL,
+  requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  processed_at TIMESTAMP NULL DEFAULT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (processed_by) REFERENCES users(id)
+);
+
+-- TÀI KHOẢN THANH TOÁN ĐÃ LƯU
+CREATE TABLE payment_accounts (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT NOT NULL,
+  method ENUM('bank_transfer','momo','zalopay') NOT NULL,
+  account_name VARCHAR(200) NOT NULL,
+  account_number VARCHAR(50) NOT NULL,
+  bank_name VARCHAR(100) DEFAULT NULL,
+  bank_code VARCHAR(20) DEFAULT NULL,
+  is_default TINYINT(1) DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- CÀI ĐẶT TÀI CHÍNH
+CREATE TABLE finance_settings (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  setting_key VARCHAR(100) UNIQUE NOT NULL,
+  setting_value VARCHAR(255) NOT NULL,
+  description TEXT,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+INSERT INTO finance_settings 
+  (setting_key, setting_value, description) VALUES
+  ('platform_fee_percent', '30', 'Phí platform giữ lại % từ doanh thu chapter'),
+  ('tip_fee_percent', '15', 'Phí platform từ tip độc giả'),
+  ('min_withdrawal', '100000', 'Số tiền rút tối thiểu VND'),
+  ('max_withdrawal', '50000000', 'Số tiền rút tối đa mỗi lần VND'),
+  ('withdrawal_fee_percent', '2', 'Phí xử lý rút tiền %'),
+  ('default_rate_per_page', '50000', 'Rate mặc định mỗi trang cho assistant VND'),
+  ('salary_day', '25', 'Ngày chốt lương hàng tháng');
+
+-- BẢNG LƯƠNG CHI TIẾT
+CREATE TABLE salary_records (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  assistant_id INT NOT NULL,
+  mangaka_id INT NOT NULL,
+  month TINYINT NOT NULL,
+  year SMALLINT NOT NULL,
+  approved_pages INT DEFAULT 0,
+  rate_per_page DECIMAL(10,2) NOT NULL,
+  gross_amount DECIMAL(15,2) NOT NULL,
+  status ENUM('pending','paid','insufficient_funds') DEFAULT 'pending',
+  paid_at TIMESTAMP NULL DEFAULT NULL,
+  transaction_id INT DEFAULT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (assistant_id) REFERENCES users(id),
+  FOREIGN KEY (mangaka_id) REFERENCES users(id),
+  UNIQUE KEY unique_salary (assistant_id, mangaka_id, month, year)
+);
+
+-- TỰ ĐỘNG TẠO VÍ KHI USER ĐĂNG KÝ (trigger)
+CREATE TRIGGER create_wallet_on_register
+AFTER INSERT ON users
+FOR EACH ROW
+INSERT INTO wallets (user_id, balance) VALUES (NEW.id, 0.00);
+
+-- TẠO VÍ CHO USER HIỆN CÓ CHƯA CÓ VÍ
+INSERT INTO wallets (user_id)
+SELECT id FROM users WHERE id NOT IN (SELECT user_id FROM wallets);
+
+-- DỮ LIỆU MẪU: nạp tiền cho mangaka test
+UPDATE wallets SET balance = 5000000, total_earned = 5000000
+WHERE user_id = (SELECT id FROM users WHERE role = 'mangaka' LIMIT 1);
+
+
 INSERT INTO users (id, username, email, password, role, avatar, bio) VALUES
 (1, 'mangaka', 'mangaka@mangasystem.com', '$2y$10$VYZfOtio0GFofEevAi1wousFpn4XjW2lcnYQAJ/ToaKkrpzS0DvdG', 'mangaka', 'assets/images/avatars/mangaka.png', 'Họa sĩ Manga chuyên nghiệp với 10 năm kinh nghiệm trong dòng Shonen.'),
 (2, 'assistant', 'assistant@mangasystem.com', '$2y$10$wGJItcX3IsthWXpTcfjk/uWW6Uf4vqIGDmih8V86uO3yRFY7EpgGS', 'assistant', 'assets/images/avatars/assistant1.png', 'Chuyên vẽ background và hiệu ứng line-art, tốc độ vẽ nhanh.'),
@@ -273,19 +407,3 @@ INSERT INTO notifications (id, user_id, type, message, is_read, link) VALUES
 INSERT INTO defenses (id, mangaka_id, chapter_id, manuscript_id, reason, status, created_at, updated_at) VALUES
 (1, 1, 3, 2, 'Kính gửi Ban Biên Tập, tôi xin giải trình về việc chỉnh sửa lại toàn bộ các khung hình chiến đấu ở trang 12 và 13 theo đúng góp ý của Biên tập viên ở phiên bản trước. Tôi cũng đã nâng cấp chi tiết background cảnh đổ nát và cải thiện phần đi nét của nhân vật chính để tăng tính kịch tính cho phân cảnh cao trào. Rất mong Biên tập viên xem xét lại và thông qua bản thảo này để kịp tiến độ xuất bản tuần tới. Xin chân thành cảm ơn!', 'pending', '2026-06-23 10:00:00', '2026-06-23 10:00:00'),
 (2, 1, 2, 1, 'Bản thảo chương 42 bị hệ thống đánh dấu từ chối ban đầu là do lỗi trùng lặp tệp tin khi upload hai lần liên tiếp. Tôi xin đính kèm bản giải trình này cùng tệp tin chính xác nhất đã được tinh chỉnh phần hiệu ứng tô bóng. Kính mong Biên tập viên phê duyệt để chúng tôi thực hiện các chương tiếp theo.', 'approved', '2026-06-15 09:00:00', '2026-06-16 14:00:00');
-
--- ══════════════════════════════════════════════════════
--- AI TOOLS — Bảng lưu log gọi API AI
--- ══════════════════════════════════════════════════════
-DROP TABLE IF EXISTS ai_logs;
-CREATE TABLE ai_logs (
-    id          INT AUTO_INCREMENT PRIMARY KEY,
-    user_id     INT,
-    type        ENUM('colorize','segment') NOT NULL,
-    input_file  VARCHAR(255) DEFAULT NULL,
-    result_file VARCHAR(255) DEFAULT NULL,
-    api_used    VARCHAR(50)  DEFAULT NULL,
-    metadata    JSON         DEFAULT NULL,
-    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_ai_logs_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -226,6 +226,10 @@ img { display: block; max-width: 100%; }
     flex-shrink: 0;
     opacity: 0.75;
     transition: opacity var(--dur);
+    font-size: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .nav-link:hover .nav-icon,
