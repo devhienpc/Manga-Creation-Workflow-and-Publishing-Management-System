@@ -7,11 +7,19 @@ DROP TABLE IF EXISTS earnings;
 DROP TABLE IF EXISTS annotations;
 DROP TABLE IF EXISTS votes;
 DROP TABLE IF EXISTS submissions;
+DROP TABLE IF EXISTS task_reviews;
+DROP TABLE IF EXISTS task_submissions;
 DROP TABLE IF EXISTS tasks;
 DROP TABLE IF EXISTS manuscripts;
 DROP TABLE IF EXISTS pages;
 DROP TABLE IF EXISTS chapters;
 DROP TABLE IF EXISTS series;
+DROP TABLE IF EXISTS salary_records;
+DROP TABLE IF EXISTS payment_accounts;
+DROP TABLE IF EXISTS withdrawal_requests;
+DROP TABLE IF EXISTS transactions;
+DROP TABLE IF EXISTS wallets;
+DROP TABLE IF EXISTS finance_settings;
 DROP TABLE IF EXISTS users;
 SET FOREIGN_KEY_CHECKS = 1;
 
@@ -91,13 +99,48 @@ CREATE TABLE tasks (
     task_type ENUM('background', 'shading', 'effects', 'lettering', 'cleanup') NOT NULL,
     description TEXT,
     region_data JSON DEFAULT NULL,
-    status ENUM('pending', 'in_progress', 'submitted', 'approved', 'revision') DEFAULT 'pending',
+    status ENUM('pending', 'in_progress', 'submitted', 'approved', 'revision') NOT NULL DEFAULT 'pending',
     due_date DATE DEFAULT NULL,
     file_result VARCHAR(255) DEFAULT NULL,
+    version INT NOT NULL DEFAULT 1,
+    is_overdue TINYINT NOT NULL DEFAULT 0,
+    parent_task_id INT DEFAULT NULL,
+    approved_at TIMESTAMP NULL DEFAULT NULL,
+    approved_by INT DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_tasks_pages FOREIGN KEY (page_id) REFERENCES pages(id) ON DELETE CASCADE,
     CONSTRAINT fk_tasks_assigned_to FOREIGN KEY (assigned_to) REFERENCES users(id) ON DELETE CASCADE,
-    CONSTRAINT fk_tasks_assigned_by FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE CASCADE
+    CONSTRAINT fk_tasks_assigned_by FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_task_approved_by FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL,
+    CONSTRAINT fk_parent_task FOREIGN KEY (parent_task_id) REFERENCES tasks(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 6b. BẢNG LỊCH SỬ NỘP BÀI (task_submissions)
+CREATE TABLE task_submissions (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    task_id INT NOT NULL,
+    submitted_by INT NOT NULL,
+    version INT NOT NULL DEFAULT 1,
+    file_result VARCHAR(255) NOT NULL,
+    file_size INT DEFAULT NULL,
+    note TEXT DEFAULT NULL,
+    submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+    FOREIGN KEY (submitted_by) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 6c. BẢNG LỊCH SỬ REVIEW CỦA MANGAKA (task_reviews)
+CREATE TABLE task_reviews (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    task_id INT NOT NULL,
+    submission_id INT NOT NULL,
+    reviewed_by INT NOT NULL,
+    action ENUM('approved', 'revision') NOT NULL,
+    comment TEXT DEFAULT NULL,
+    reviewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+    FOREIGN KEY (submission_id) REFERENCES task_submissions(id) ON DELETE CASCADE,
+    FOREIGN KEY (reviewed_by) REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 7. BẢNG ĐỆ TRÌNH BAN BIÊN TẬP (submissions)
@@ -199,6 +242,10 @@ CREATE INDEX idx_submissions_status ON submissions(status);
 CREATE INDEX idx_votes_period ON votes(vote_period);
 CREATE INDEX idx_notifications_unread ON notifications(user_id, is_read);
 CREATE INDEX idx_defenses_status ON defenses(status);
+CREATE INDEX idx_tasks_page_status ON tasks(page_id, status);
+CREATE INDEX idx_tasks_assigned ON tasks(assigned_to, status);
+CREATE INDEX idx_submissions_task ON task_submissions(task_id, version);
+CREATE INDEX idx_reviews_task ON task_reviews(task_id);
 
 -- ==========================================
 -- DỮ LIỆU MẪU (SEED DATA)
@@ -379,6 +426,14 @@ INSERT INTO manuscripts (id, series_id, chapter_id, file_path, version, submitte
 INSERT INTO tasks (id, page_id, assigned_to, assigned_by, task_type, description, region_data, status, due_date, file_result) VALUES
 (1, 2, 2, 1, 'background', 'Vẽ phông nền các tòa nhà chọc trời đổ nát theo phong cách cyberpunk.', '{"x": 10, "y": 20, "w": 80, "h": 50}', 'in_progress', '2026-06-22', NULL),
 (2, 1, 3, 1, 'shading', 'Tạo bóng cho khuôn mặt nhân vật chính ở góc dưới bên phải.', '{"x": 50, "y": 60, "w": 40, "h": 30}', 'approved', '2026-06-19', 'uploads/tasks/result_p1_shading.png');
+
+-- Seeding cho bảng task_submissions (lịch sử nộp bài)
+INSERT INTO task_submissions (id, task_id, submitted_by, version, file_result, file_size, note, submitted_at) VALUES
+(1, 2, 3, 1, 'uploads/tasks/result_p1_shading.png', 102400, 'Đã hoàn thành vẽ bóng cho nhân vật chính.', '2026-06-19 10:00:00');
+
+-- Seeding cho bảng task_reviews (lịch sử review)
+INSERT INTO task_reviews (id, task_id, submission_id, reviewed_by, action, comment, reviewed_at) VALUES
+(1, 2, 1, 1, 'approved', 'Nét vẽ bóng rất tốt, đạt yêu cầu.', '2026-06-19 14:00:00');
 
 -- Seeding cho bảng submissions (gửi BBT)
 INSERT INTO submissions (id, series_id, manuscript_id, submitted_by, status, board_notes) VALUES

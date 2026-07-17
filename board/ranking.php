@@ -229,7 +229,7 @@ $nowYear  = (int)date('Y');
     transition: border-color 0.2s;
     outline: none;
 }
-.vote-num-input:focus { border-color: var(--accent-primary); box-shadow: 0 0 0 2px rgba(99,102,241,0.15); }
+.vote-num-input:focus { border-color: var(--red); box-shadow: 0 0 0 2px var(--red-glow); }
 
 /* Period selector */
 .period-selector {
@@ -250,9 +250,10 @@ $nowYear  = (int)date('Y');
     text-align: center;
 }
 .period-type-btn.active {
-    border-color: var(--accent-primary);
-    background: rgba(99,102,241,0.12);
-    color: #a5b4fc;
+    border-color: var(--red) !important;
+    background: var(--red-subtle) !important;
+    color: var(--text) !important;
+    box-shadow: 0 0 8px var(--red-glow);
 }
 
 /* Stats mini */
@@ -264,7 +265,7 @@ $nowYear  = (int)date('Y');
     background: var(--bg-input);
     text-align: center;
 }
-.stat-box .n { font-size: 1.5rem; font-weight: 800; color: #a5b4fc; }
+.stat-box .n { font-size: 1.5rem; font-weight: 800; color: var(--red); }
 .stat-box .l { font-size: 0.68rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; margin-top: 4px; }
 
 /* Period history pills */
@@ -281,8 +282,8 @@ $nowYear  = (int)date('Y');
     transition: all 0.15s;
     white-space: nowrap;
 }
-.period-pill:hover { border-color: rgba(99,102,241,.4); color: var(--text-primary); }
-.period-pill.current { border-color: var(--accent-primary); background: rgba(99,102,241,.1); color: #a5b4fc; }
+.period-pill:hover { border-color: var(--red); color: var(--text); }
+.period-pill.current { border-color: var(--red); background: var(--red-subtle); color: var(--text); }
 
 /* Empty state */
 .empty-rank {

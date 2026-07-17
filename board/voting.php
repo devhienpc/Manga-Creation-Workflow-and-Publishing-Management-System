@@ -151,15 +151,16 @@ $rejectedCount = (int) ($stats['cnt_rejected'] ?? 0);
     }
 
     .sub-card:hover {
-        border-color: rgba(99, 102, 241, 0.5);
-        background: rgba(99, 102, 241, 0.05);
-        transform: translateX(3px);
+        border-color: var(--red) !important;
+        background: var(--red-subtle) !important;
+        transform: translateX(4px);
+        box-shadow: 0 4px 15px var(--red-glow);
     }
 
     .sub-card.active {
-        border-color: var(--accent-primary);
-        background: rgba(99, 102, 241, 0.1);
-        box-shadow: 0 0 0 1px var(--accent-primary);
+        border-color: var(--red) !important;
+        background: var(--red-subtle) !important;
+        box-shadow: 0 0 0 2px var(--red) !important;
     }
 
     .sub-card-title {
@@ -302,12 +303,12 @@ $rejectedCount = (int) ($stats['cnt_rejected'] ?? 0);
     }
 
     .page-thumb:hover {
-        border-color: rgba(99, 102, 241, .5);
+        border-color: var(--red) !important;
     }
 
     .page-thumb.active {
-        border-color: var(--accent-primary);
-        box-shadow: 0 0 8px rgba(99, 102, 241, 0.4);
+        border-color: var(--red) !important;
+        box-shadow: 0 0 10px var(--red-glow) !important;
     }
 
     .page-thumb .pnum {
@@ -372,9 +373,9 @@ $rejectedCount = (int) ($stats['cnt_rejected'] ?? 0);
         border-radius: 20px;
         font-size: 0.7rem;
         font-weight: 600;
-        background: rgba(99, 102, 241, 0.15);
-        color: #a5b4fc;
-        border: 1px solid rgba(99, 102, 241, 0.25);
+        background: var(--red-subtle) !important;
+        color: var(--text) !important;
+        border: 1px solid var(--border) !important;
         margin: 2px;
     }
 
@@ -478,14 +479,15 @@ $rejectedCount = (int) ($stats['cnt_rejected'] ?? 0);
     }
 
     .schedule-opt:hover {
-        border-color: rgba(99, 102, 241, 0.4);
-        color: var(--text-primary);
+        border-color: var(--red) !important;
+        color: var(--text) !important;
     }
 
     .schedule-opt.selected {
-        border-color: var(--accent-primary);
-        background: rgba(99, 102, 241, 0.12);
-        color: #a5b4fc;
+        border-color: var(--red) !important;
+        background: var(--red-subtle) !important;
+        color: var(--text) !important;
+        box-shadow: 0 0 10px var(--red-glow) !important;
     }
 
     .schedule-opt .icon {
@@ -577,12 +579,13 @@ $rejectedCount = (int) ($stats['cnt_rejected'] ?? 0);
     }
 
     .section-heading .badge-count {
-        background: rgba(99, 102, 241, 0.2);
-        color: #a5b4fc;
+        background: var(--red-subtle) !important;
+        color: var(--text) !important;
         border-radius: 20px;
         padding: 2px 9px;
         font-size: 0.72rem;
         font-weight: 700;
+        border: 1px solid var(--border);
     }
 
     /* Tabs */
@@ -848,7 +851,7 @@ $rejectedCount = (int) ($stats['cnt_rejected'] ?? 0);
                                 title="PDF Bản thảo <?= htmlspecialchars($selectedSub['series_title']) ?>">
                                 <p style="padding:20px; color:var(--text-muted);">
                                     Trình duyệt không hỗ trợ xem PDF.
-                                    <a href="<?= $fileUrl ?>" target="_blank" style="color:var(--accent-primary);">Mở file trực
+                                    <a href="<?= $fileUrl ?>" target="_blank" style="color:var(--red);">Mở file trực
                                         tiếp</a>
                                 </p>
                             </iframe>

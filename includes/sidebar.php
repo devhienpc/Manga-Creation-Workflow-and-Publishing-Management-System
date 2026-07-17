@@ -9,6 +9,41 @@ if (!isset($currentUser)) {
 $role       = $currentUser['role'];
 $activePage = $activePage ?? '';
 
+$db  = getDB();
+$uid = $currentUser['id'];
+
+// Thống kê cho badge sidebar
+$submittedTasksCount = 0;
+if ($role === 'mangaka') {
+    try {
+        $stmt = $db->prepare("
+            SELECT COUNT(*) FROM tasks t
+            JOIN pages p ON t.page_id=p.id
+            JOIN chapters c ON p.chapter_id=c.id
+            JOIN series s ON c.series_id=s.id
+            WHERE s.mangaka_id = ? AND t.status = 'submitted'
+        ");
+        $stmt->execute([$uid]);
+        $submittedTasksCount = (int)$stmt->fetchColumn();
+    } catch (\Throwable $e) {
+        error_log("Sidebar submitted tasks count error: " . $e->getMessage());
+    }
+}
+
+$revisionTasksCount = 0;
+if ($role === 'assistant') {
+    try {
+        $stmt = $db->prepare("
+            SELECT COUNT(*) FROM tasks 
+            WHERE assigned_to = ? AND status = 'revision'
+        ");
+        $stmt->execute([$uid]);
+        $revisionTasksCount = (int)$stmt->fetchColumn();
+    } catch (\Throwable $e) {
+        error_log("Sidebar revision tasks count error: " . $e->getMessage());
+    }
+}
+
 // Role label và màu sắc
 $roleLabels = [
     'mangaka'   => 'Họa sĩ Manga',
@@ -31,7 +66,7 @@ $menus = [
         [
             'label' => 'QUẢN LÝ',
             'items' => [
-                ['page' => 'tasks',    'label' => 'Task Manager',   'href' => BASE_URL . 'mangaka/tasks.php',   'icon' => 'check-square'],
+                ['page' => 'tasks',    'label' => 'Task Manager',   'href' => BASE_URL . 'mangaka/tasks.php',   'icon' => 'check-square', 'badge_type' => 'submitted_tasks'],
                 ['page' => 'ranking',  'label' => 'BXH Truyện',     'href' => BASE_URL . 'mangaka/ranking.php', 'icon' => 'trending-up'],
                 ['page' => 'defense',  'label' => 'Bảo vệ tác phẩm', 'href' => BASE_URL . 'mangaka/defense.php', 'icon' => 'shield'],
                 ['page' => 'notifs',   'label' => 'Thông báo',      'href' => BASE_URL . 'mangaka/notifications.php', 'icon' => 'bell', 'badge' => true],
@@ -64,7 +99,7 @@ $menus = [
             'label' => 'CHÍNH',
             'items' => [
                 ['page' => 'dashboard', 'label' => 'Dashboard',       'href' => BASE_URL . 'assistant/dashboard.php', 'icon' => 'grid'],
-                ['page' => 'tasks',     'label' => 'Nhiệm vụ của tôi', 'href' => BASE_URL . 'assistant/tasks.php',    'icon' => 'clipboard'],
+                ['page' => 'tasks',     'label' => 'Nhiệm vụ của tôi', 'href' => BASE_URL . 'assistant/tasks.php',    'icon' => 'clipboard', 'badge_type' => 'revision_tasks'],
             ]
         ],
         [
@@ -208,11 +243,18 @@ $currentMenuGroups = $menus[$role] ?? [];
                         <?= navIcon($item['icon']) ?>
                         <span><?= htmlspecialchars($item['label']) ?></span>
                         <?php if (!empty($item['badge']) && ($unreadCount ?? 0) > 0): ?>
-    <span class="nav-badge"><?= $unreadCount ?? 0 ?></span>
-<?php endif; ?>
+                            <span class="nav-badge"><?= $unreadCount ?? 0 ?></span>
+                        <?php endif; ?>
+                        <?php if (!empty($item['badge_type'])): ?>
+                            <?php if ($item['badge_type'] === 'submitted_tasks' && $submittedTasksCount > 0): ?>
+                                <span class="nav-badge" style="background-color: #e74c3c;"><?= $submittedTasksCount ?></span>
+                            <?php elseif ($item['badge_type'] === 'revision_tasks' && $revisionTasksCount > 0): ?>
+                                <span class="nav-badge" style="background-color: #f39c12; color: #fff;"><?= $revisionTasksCount ?></span>
+                            <?php endif; ?>
+                        <?php endif; ?>
                         <?php if (!empty($item['ai'])): ?>
-    <span style="font-size:.5rem;font-weight:800;letter-spacing:.5px;padding:1px 5px;border-radius:100px;background:linear-gradient(135deg,#7B2FBE,#a855f7);color:#fff;margin-left:auto;flex-shrink:0;">AI</span>
-<?php endif; ?>
+                            <span style="font-size:.5rem;font-weight:800;letter-spacing:.5px;padding:1px 5px;border-radius:100px;background:linear-gradient(135deg,#7B2FBE,#a855f7);color:#fff;margin-left:auto;flex-shrink:0;">AI</span>
+                        <?php endif; ?>
                     </a>
                 </div>
             <?php endforeach; ?>
