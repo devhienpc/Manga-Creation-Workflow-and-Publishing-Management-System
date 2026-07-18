@@ -8,6 +8,7 @@ require_once __DIR__ . '/../config/constants.php';
 $pageTitle    = 'Bản thảo duyệt';
 $activePage   = 'manuscripts';
 $allowedRoles = [ROLES['EDITOR']];
+$extraCss     = 'assets/css/editor-ui.css';
 require_once __DIR__ . '/../includes/layout.php';
 
 $db  = getDB();

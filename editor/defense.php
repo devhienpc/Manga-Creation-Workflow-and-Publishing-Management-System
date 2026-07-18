@@ -174,6 +174,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 $pageTitle = 'Bảo vệ tác phẩm';
 $activePage = 'defense';
 $allowedRoles = [ROLES['EDITOR']];
+$extraCss     = 'assets/css/editor-ui.css';
 require_once __DIR__ . '/../includes/layout.php';
 
 // Lấy thông báo lưu trong Session để hiển thị

@@ -180,6 +180,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 // ══════════════════════════════════════════════════
 // 3. LOAD NỘI DUNG LAYOUT
 // ══════════════════════════════════════════════════
+$extraCss     = 'assets/css/editor-ui.css';
 require_once __DIR__ . '/../includes/layout.php';
 
 // Các tham số lọc từ GET

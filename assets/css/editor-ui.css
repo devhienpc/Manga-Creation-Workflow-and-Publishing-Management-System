@@ -1,0 +1,159 @@
+/* ============================================================
+   MangaFlow — Editor UI/UX Enhancements
+   Focuses on aesthetics, micro-interactions, and visual hierarchy
+   ============================================================ */
+
+/* ---------- Cards Enhancements ---------- */
+.card {
+    transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease), border-color var(--dur) var(--ease);
+    border: 1px solid var(--border-card);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+    border-color: rgba(255, 255, 255, 0.12);
+}
+
+/* Enhancing Stat Cards specifically */
+.stat-card {
+    position: relative;
+    overflow: hidden;
+}
+
+.stat-card::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 50%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.03), transparent);
+    transform: skewX(-20deg);
+    transition: left 0.6s var(--ease);
+}
+
+.stat-card:hover::after {
+    left: 200%;
+}
+
+.stat-card:hover .stat-icon {
+    transform: scale(1.15) rotate(5deg);
+    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.stat-icon {
+    transition: transform 0.3s var(--ease);
+}
+
+/* ---------- Buttons Enhancements ---------- */
+.btn {
+    transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s var(--ease);
+    position: relative;
+    overflow: hidden;
+}
+
+.btn:active {
+    transform: scale(0.96);
+}
+
+/* Primary Button Hierarchy */
+.btn-primary {
+    box-shadow: 0 4px 10px var(--red-glow);
+    font-weight: 600;
+}
+
+.btn-primary:hover {
+    box-shadow: 0 6px 16px rgba(230, 57, 70, 0.4);
+    transform: translateY(-1px);
+    filter: brightness(1.1);
+}
+
+.btn-primary:active {
+    box-shadow: 0 2px 6px var(--red-glow);
+}
+
+/* Secondary Button Hierarchy */
+.btn-secondary {
+    border: 1px solid var(--border);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    font-weight: 500;
+}
+
+.btn-secondary:hover {
+    border-color: rgba(255,255,255,0.15);
+    background: rgba(255,255,255,0.06);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+}
+
+/* Ghost Button Hierarchy */
+.btn-ghost {
+    opacity: 0.8;
+}
+
+.btn-ghost:hover {
+    opacity: 1;
+    background: rgba(255,255,255,0.08);
+    transform: translateY(-1px);
+}
+
+/* ---------- Tables & Lists Enhancements ---------- */
+.table-wrap table tbody tr {
+    transition: background-color 0.2s var(--ease), transform 0.2s var(--ease);
+}
+
+.table-wrap table tbody tr:hover {
+    background-color: rgba(255, 255, 255, 0.04) !important;
+    transform: translateX(4px);
+}
+
+/* Add a subtle left border to hovered rows for better tracking */
+.table-wrap table tbody tr:hover td:first-child {
+    position: relative;
+}
+
+.table-wrap table tbody tr:hover td:first-child::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 10%;
+    height: 80%;
+    width: 3px;
+    background-color: var(--red);
+    border-radius: 0 3px 3px 0;
+}
+
+/* Status Badges micro-interaction */
+.badge {
+    transition: filter 0.2s var(--ease), transform 0.2s var(--ease);
+}
+
+.badge:hover {
+    filter: brightness(1.15);
+    transform: translateY(-1px);
+}
+
+/* Deadlines & Tasks Cards Hover */
+.card > div[style*="border-radius:8px"] {
+    transition: background 0.2s var(--ease), border-color 0.2s var(--ease), transform 0.2s var(--ease);
+}
+
+.card > div[style*="border-radius:8px"]:hover {
+    background: rgba(255,255,255,0.05) !important;
+    border-color: rgba(255,255,255,0.15) !important;
+    transform: translateX(3px);
+}
+
+/* Smooth Tabs (If any are used in editor pages) */
+.tab-btn {
+    transition: color 0.2s var(--ease), border-bottom-color 0.2s var(--ease), background 0.2s var(--ease);
+}
+
+.tab-btn:hover {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.tab-btn:active {
+    transform: scale(0.98);
+}
