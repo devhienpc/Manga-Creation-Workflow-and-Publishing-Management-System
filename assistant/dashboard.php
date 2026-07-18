@@ -136,7 +136,8 @@ $taskStatusLabels = [
 </div>
 
 <!-- 3 Statistics Cards -->
-<div class="stat-grid grid-3 mb-24">
+
+<div class="stat-grid grid-2 mb-24"> <!-- Đã đổi từ grid-3 thành grid-2 -->
     <!-- Active Tasks Count -->
     <div class="card stat-card" style="padding: 20px;">
         <div>
@@ -152,21 +153,6 @@ $taskStatusLabels = [
             <div class="stat-number" style="font-size: 2.2rem; font-weight:800; margin-top:5px; color:#34d399;"><?= $completedPagesMonth ?></div>
         </div>
         <div class="stat-icon" style="color:#34d399; font-size:1.8rem; opacity:0.8; display:flex; align-items:center; justify-content:center;"><i class="fi fi-sr-palette"></i></div>
-    </div>
-    <!-- Monthly Earnings Preview -->
-    <div class="card stat-card" style="padding: 20px;">
-        <div>
-            <p class="text-xs text-muted font-bold" style="text-transform:uppercase; letter-spacing:0.5px;">
-                Thu nhập dự kiến (Tháng <?= $currentMonth ?>)
-            </p>
-            <div class="stat-number" style="font-size: 1.9rem; font-weight:800; margin-top:8px; color:#fbbf24;">
-                <?= number_format($earningsPreview) ?> đ
-            </div>
-            <p class="text-xs text-muted mt-8" style="font-style: italic;">
-                <?= $isOfficialEarnings ? '✓ Dữ liệu chính thức' : '* Ước tính (' . number_format($fallbackRate) . 'đ/trang)' ?>
-            </p>
-        </div>
-        <div class="stat-icon" style="color:#fbbf24; font-size:1.8rem; opacity:0.8; display:flex; align-items:center; justify-content:center;"><i class="fi fi-sr-dollar"></i></div>
     </div>
 </div>
 
