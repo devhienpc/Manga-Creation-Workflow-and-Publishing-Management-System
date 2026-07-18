@@ -242,10 +242,10 @@ $historyList = $stmtHistory->fetchAll();
 <div class="tabs-container mb-24">
     <div class="tab-header" style="display: flex; gap: 24px; border-bottom: 1px solid var(--border); margin-bottom: 24px;">
         <button class="tab-btn active" onclick="switchTab('pending')" id="tab-btn-pending" style="background: none; border: none; color: #fff; font-weight: 600; font-size: 0.95rem; cursor: pointer; border-bottom: 3px solid var(--red);">
-            <i class="ph-fill ph-tray-arrow-down" style="font-size: 1.2rem;"></i> Đơn chờ xử lý <span class="badge badge-yellow" style="margin-left: 6px; font-size: 0.7rem; padding: 1px 6px;"><?= count($pendingList) ?></span>
+            Đơn chờ xử lý <span class="badge badge-yellow" style="margin-left: 6px; font-size: 0.7rem; padding: 1px 6px;"><?= count($pendingList) ?></span>
         </button>
         <button class="tab-btn" onclick="switchTab('history')" id="tab-btn-history" style="background: none; border: none; color: var(--text-muted); font-weight: 600; font-size: 0.95rem; cursor: pointer; border-bottom: 3px solid transparent;">
-            <i class="ph-fill ph-clock-counter-clockwise" style="font-size: 1.2rem;"></i> Lịch sử đã xử lý <span class="badge badge-gray" style="margin-left: 6px; font-size: 0.7rem; padding: 1px 6px;"><?= count($historyList) ?></span>
+            Lịch sử đã xử lý <span class="badge badge-gray" style="margin-left: 6px; font-size: 0.7rem; padding: 1px 6px;"><?= count($historyList) ?></span>
         </button>
     </div>
 
@@ -313,13 +313,13 @@ $historyList = $stmtHistory->fetchAll();
                                                     data-series="<?= htmlspecialchars($row['series_title'], ENT_QUOTES, 'UTF-8') ?>"
                                                     data-chapter="Chương <?= htmlspecialchars($row['chapter_number'], ENT_QUOTES, 'UTF-8') ?>"
                                                     onclick="openReasonModal(this)">
-                                                <i class="ph-fill ph-eye"></i> Xem
+                                                Xem
                                             </button>
                                             
                                             <form action="" method="POST" style="display: inline;" onsubmit='return confirmApprove(event, <?= htmlspecialchars(json_encode($row['series_title']), ENT_QUOTES, "UTF-8") ?>, <?= $row['chapter_number'] ?>)'>
                                                 <input type="hidden" name="defense_id" value="<?= $row['id'] ?>">
                                                 <input type="hidden" name="action" value="approved">
-                                                <button type="submit" class="btn btn-success btn-sm"><i class="ph-fill ph-check"></i> Duyệt</button>
+                                                <button type="submit" class="btn btn-success btn-sm">Duyệt</button>
                                             </form>
 
                                             <form action="" method="POST" style="display: inline;" onsubmit='return confirmReject(event, <?= htmlspecialchars(json_encode($row['series_title']), ENT_QUOTES, "UTF-8") ?>, <?= $row['chapter_number'] ?>)'>

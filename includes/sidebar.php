@@ -62,23 +62,23 @@ $menus = [
     ],
     'editor' => [
         [
-            'label' => '🌸 CHÍNH',
+            'label' => 'CHÍNH',
             'items' => [
-                ['page' => 'dashboard',    'label' => '✨ Dashboard',         'href' => BASE_URL . 'editor/dashboard.php',   'icon' => 'cute-home'],
-                ['page' => 'manuscripts',  'label' => '🎀 Bản thảo duyệt',    'href' => BASE_URL . 'editor/manuscripts.php', 'icon' => 'cute-file'],
+                ['page' => 'dashboard',    'label' => 'Dashboard',         'href' => BASE_URL . 'editor/dashboard.php',   'icon' => 'fi fi-sr-apps'],
+                ['page' => 'manuscripts',  'label' => 'Bản thảo duyệt',    'href' => BASE_URL . 'editor/manuscripts.php', 'icon' => 'fi fi-sr-document'],
             ]
         ],
         [
-            'label' => '💖 THEO DÕI',
+            'label' => 'THEO DÕI',
             'items' => [
-                ['page' => 'progress',  'label' => '🎨 Tiến độ Studio',    'href' => BASE_URL . 'editor/progress.php',   'icon' => 'cute-paint'],
-                ['page' => 'defense',   'label' => '🛡️ Bảo vệ tác phẩm',  'href' => BASE_URL . 'editor/defense.php',    'icon' => 'cute-shield'],
+                ['page' => 'progress',  'label' => 'Tiến độ Studio',    'href' => BASE_URL . 'editor/progress.php',   'icon' => 'fi fi-sr-palette'],
+                ['page' => 'defense',   'label' => 'Bảo vệ tác phẩm',  'href' => BASE_URL . 'editor/defense.php',    'icon' => 'fi fi-sr-shield-check'],
             ]
         ],
         [
-            'label' => '🐰 TÀI KHOẢN',
+            'label' => 'TÀI KHOẢN',
             'items' => [
-                ['page' => 'profile', 'label' => '🧸 Hồ sơ của tôi', 'href' => BASE_URL . 'profile.php', 'icon' => 'cute-user'],
+                ['page' => 'profile', 'label' => 'Hồ sơ của tôi', 'href' => BASE_URL . 'profile.php', 'icon' => 'fi fi-sr-user'],
             ]
         ],
     ],
@@ -140,6 +140,12 @@ function navIcon(string $name): string {
         'cute-shield'  => '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="#fbbf24" fill-opacity="0.2"/>',
         'cute-user'    => '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" fill="#38bdf8" fill-opacity="0.2"/><circle cx="12" cy="7" r="4" fill="#38bdf8" fill-opacity="0.2"/>',
     ];
+    
+    // Nếu tên icon bắt đầu bằng 'fi ' (Flaticon)
+    if (strpos($name, 'fi ') === 0) {
+        return '<i class="' . htmlspecialchars($name) . '" style="font-size: 1.15rem; margin-right: 4px;"></i>';
+    }
+
     $d = $icons[$name] ?? '<circle cx="12" cy="12" r="5"/>';
     return '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' . $d . '</svg>';
 }
