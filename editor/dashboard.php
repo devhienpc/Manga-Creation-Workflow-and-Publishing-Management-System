@@ -85,11 +85,11 @@ $activeStudioTasks = $stmt->fetchAll();
 
 /* Maps nhãn loại và trạng thái */
 $seriesStatusConfig = [
-    'draft'      => ['Bản nháp',      'badge-gray',   '📝'],
-    'submitted'  => ['Đã nộp',        'badge-blue',   '📤'],
-    'approved'   => ['Đã duyệt',      'badge-purple', '✅'],
-    'publishing' => ['Đang xuất bản', 'badge-green',  '🔥'],
-    'cancelled'  => ['Đã hủy',        'badge-red',    '✕'],
+    'draft'      => ['Bản nháp',      'badge-gray',   '<i class="ph-fill ph-file-dashed"></i>'],
+    'submitted'  => ['Đã nộp',        'badge-blue',   '<i class="ph-fill ph-paper-plane-tilt"></i>'],
+    'approved'   => ['Đã duyệt',      'badge-purple', '<i class="ph-fill ph-check-circle"></i>'],
+    'publishing' => ['Đang xuất bản', 'badge-green',  '<i class="ph-fill ph-fire"></i>'],
+    'cancelled'  => ['Đã hủy',        'badge-red',    '<i class="ph-fill ph-x-circle"></i>'],
 ];
 
 $chapterStatusConfig = [
@@ -139,21 +139,21 @@ $taskStatusLabels = [
             <p class="text-xs text-muted font-bold" style="text-transform:uppercase; letter-spacing:0.5px;">Bản thảo chờ duyệt</p>
             <div class="stat-number" style="font-size: 2.2rem; font-weight:800; margin-top:5px; color:#fbbf24;"><?= $pendingManuscriptsCount ?></div>
         </div>
-        <div class="stat-icon" style="color:#fbbf24; font-size:1.8rem; opacity:0.8;">📤</div>
+        <div class="stat-icon" style="color:#fbbf24; font-size:2rem; opacity:0.8;"><i class="ph-fill ph-tray"></i></div>
     </div>
     <div class="card stat-card" style="padding: 20px;">
         <div>
             <p class="text-xs text-muted font-bold" style="text-transform:uppercase; letter-spacing:0.5px;">Tổng số bộ truyện hệ thống</p>
             <div class="stat-number" style="font-size: 2.2rem; font-weight:800; margin-top:5px;"><?= count($seriesList) ?></div>
         </div>
-        <div class="stat-icon" style="color:var(--red); font-size:1.8rem; opacity:0.8;">📚</div>
+        <div class="stat-icon" style="color:var(--red); font-size:2rem; opacity:0.8;"><i class="ph-fill ph-books"></i></div>
     </div>
     <div class="card stat-card" style="padding: 20px;">
         <div>
             <p class="text-xs text-muted font-bold" style="text-transform:uppercase; letter-spacing:0.5px;">Tasks Studio Đang Vẽ</p>
             <div class="stat-number" style="font-size: 2.2rem; font-weight:800; margin-top:5px; color:#60a5fa;"><?= count($activeStudioTasks) ?></div>
         </div>
-        <div class="stat-icon" style="color:#60a5fa; font-size:1.8rem; opacity:0.8;">🎨</div>
+        <div class="stat-icon" style="color:#60a5fa; font-size:2rem; opacity:0.8;"><i class="ph-fill ph-palette"></i></div>
     </div>
 </div>
 
@@ -173,7 +173,7 @@ $taskStatusLabels = [
 
             <?php if (empty($pendingManuscripts)): ?>
                 <div style="text-align:center; padding: 40px 20px; color:var(--text-muted);">
-                    <span style="font-size:2.5rem;">📄</span>
+                    <span style="font-size:3rem; color: var(--text-dim);"><i class="ph-fill ph-file-text"></i></span>
                     <p style="margin-top:10px;">Không có bản thảo nào đang chờ kiểm duyệt.</p>
                 </div>
             <?php else: ?>
@@ -266,9 +266,9 @@ $taskStatusLabels = [
     <!-- CỘT PHẢI: DEADLINE & TIẾN ĐỘ STUDIO -->
     <div>
         <!-- Section: Deadline Chương Truyện -->
-        <div class="card" style="padding: 20px; margin-bottom:24px;">
-            <p class="card-title" style="font-size:1.05rem; font-weight:700; color:#f59e0b; display:flex; align-items:center; gap:8px;">
-                ⏱️ Hạn Chót Chương Truyện
+        <div class="card" style="padding: 24px; margin-bottom:24px;">
+            <p class="card-title" style="font-size:1.1rem; font-weight:700; color:#f59e0b; display:flex; align-items:center; gap:8px;">
+                <i class="ph-fill ph-clock-countdown" style="font-size:1.3rem;"></i> Hạn Chót Chương Truyện
             </p>
             <p class="card-subtitle mb-16">Thời hạn hoàn thành bản thảo chương của các bộ truyện</p>
 
@@ -282,7 +282,7 @@ $taskStatusLabels = [
                         [$cLabel, $cClass] = $chapterStatusConfig[$ch['status']] ?? ['?', 'badge-gray'];
                         $isOverdue = strtotime($ch['deadline']) < time();
                     ?>
-                        <div style="padding:12px; background:rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius:8px;">
+                        <div class="list-item-card" style="background:rgba(255,255,255,0.02); border: 1px solid var(--border);">
                             <div style="display:flex; justify-content:space-between; align-items:flex-start;">
                                 <div style="min-width:0;">
                                     <strong style="font-size:0.85rem; color:#fff;" class="truncate"><?= htmlspecialchars($ch['series_title']) ?></strong>
@@ -303,9 +303,9 @@ $taskStatusLabels = [
         </div>
 
         <!-- Section: Studio Progress (Assistant tasks) -->
-        <div class="card" style="padding: 20px;">
-            <p class="card-title" style="font-size:1.05rem; font-weight:700; color:#60a5fa; display:flex; align-items:center; gap:8px;">
-                🎨 Theo Dõi Tiến Độ Studio
+        <div class="card" style="padding: 24px;">
+            <p class="card-title" style="font-size:1.1rem; font-weight:700; color:#60a5fa; display:flex; align-items:center; gap:8px;">
+                <i class="ph-fill ph-paint-brush-broad" style="font-size:1.3rem;"></i> Theo Dõi Tiến Độ Studio
             </p>
             <p class="card-subtitle mb-16">Các nhiệm vụ trợ lý đang làm chưa hoàn thành</p>
 
@@ -319,7 +319,7 @@ $taskStatusLabels = [
                         [$typeLabel, $typeColor, $typeBg] = $taskTypeLabels[$st['task_type']] ?? ['?', '#fff', 'rgba(255,255,255,.1)'];
                         [$stLabel, $stClass] = $taskStatusLabels[$st['status']] ?? ['?', 'badge-gray'];
                     ?>
-                        <div style="padding:12px; background:rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius:8px;">
+                        <div class="list-item-card" style="background:rgba(255,255,255,0.02); border: 1px solid var(--border);">
                             <div style="display:flex; justify-content:space-between; align-items:flex-start;">
                                 <div style="min-width:0;">
                                     <strong style="font-size:0.82rem; color:#fff;" class="truncate"><?= htmlspecialchars($st['series_title']) ?></strong>

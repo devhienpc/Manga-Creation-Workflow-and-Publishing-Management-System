@@ -1,25 +1,45 @@
+@import url("https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css");
+@import url("https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css");
+
 /* ============================================================
-   MangaFlow — Editor UI/UX Enhancements
-   Focuses on aesthetics, micro-interactions, and visual hierarchy
+   MangaFlow — Editor UI/UX Enhancements (V2)
+   Focuses on aesthetics, micro-interactions, visual hierarchy, 
+   and cute rounded icons.
    ============================================================ */
+
+/* Global Icon Styling for Editor */
+i.ph, i.ph-fill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    vertical-align: middle;
+    line-height: 1;
+}
 
 /* ---------- Cards Enhancements ---------- */
 .card {
-    transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease), border-color var(--dur) var(--ease);
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease, border-color 0.25s ease;
     border: 1px solid var(--border-card);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+    border-radius: 14px; /* Slightly rounder cards */
 }
 
 .card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-    border-color: rgba(255, 255, 255, 0.12);
+    transform: translateY(-3px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+.card-header {
+    padding: 24px 28px !important;
 }
 
 /* Enhancing Stat Cards specifically */
 .stat-card {
     position: relative;
     overflow: hidden;
+    padding: 24px !important;
+    border-radius: 16px;
 }
 
 .stat-card::after {
@@ -29,9 +49,9 @@
     left: -100%;
     width: 50%;
     height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.03), transparent);
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.04), transparent);
     transform: skewX(-20deg);
-    transition: left 0.6s var(--ease);
+    transition: left 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .stat-card:hover::after {
@@ -39,57 +59,74 @@
 }
 
 .stat-card:hover .stat-icon {
-    transform: scale(1.15) rotate(5deg);
-    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    transform: scale(1.15) rotate(8deg);
 }
 
 .stat-icon {
-    transition: transform 0.3s var(--ease);
+    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 /* ---------- Buttons Enhancements ---------- */
 .btn {
-    transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s var(--ease);
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease, background-color 0.2s ease, filter 0.2s ease;
     position: relative;
     overflow: hidden;
+    border-radius: 10px; /* Rounder buttons */
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
 }
 
 .btn:active {
-    transform: scale(0.96);
+    transform: scale(0.94) !important; /* Bouncy press */
 }
 
 /* Primary Button Hierarchy */
 .btn-primary {
-    box-shadow: 0 4px 10px var(--red-glow);
+    box-shadow: 0 4px 12px var(--red-glow);
     font-weight: 600;
+    border: 1px solid rgba(255,255,255,0.1);
 }
 
 .btn-primary:hover {
-    box-shadow: 0 6px 16px rgba(230, 57, 70, 0.4);
-    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(230, 57, 70, 0.45);
+    transform: translateY(-2px);
     filter: brightness(1.1);
-}
-
-.btn-primary:active {
-    box-shadow: 0 2px 6px var(--red-glow);
 }
 
 /* Secondary Button Hierarchy */
 .btn-secondary {
     border: 1px solid var(--border);
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
     font-weight: 500;
 }
 
 .btn-secondary:hover {
-    border-color: rgba(255,255,255,0.15);
-    background: rgba(255,255,255,0.06);
-    box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+    border-color: rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.08);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    transform: translateY(-1px);
+}
+
+/* Danger / Reject Buttons */
+.btn-danger {
+    background-color: var(--red-dark);
+    color: white;
+    border: none;
+    box-shadow: 0 4px 10px rgba(193, 18, 31, 0.3);
+}
+.btn-danger:hover {
+    background-color: var(--red);
+    box-shadow: 0 6px 16px rgba(230, 57, 70, 0.4);
+    transform: translateY(-2px);
 }
 
 /* Ghost Button Hierarchy */
 .btn-ghost {
-    opacity: 0.8;
+    opacity: 0.85;
 }
 
 .btn-ghost:hover {
@@ -99,61 +136,85 @@
 }
 
 /* ---------- Tables & Lists Enhancements ---------- */
+.table-wrap {
+    padding: 0 8px; /* Breathing room */
+}
+
+.table-wrap table th {
+    padding: 16px 20px !important;
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
 .table-wrap table tbody tr {
-    transition: background-color 0.2s var(--ease), transform 0.2s var(--ease);
+    transition: background-color 0.2s ease, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    border-bottom: 1px solid rgba(255,255,255,0.02) !important;
+}
+
+.table-wrap table tbody tr td {
+    padding: 16px 20px !important;
 }
 
 .table-wrap table tbody tr:hover {
-    background-color: rgba(255, 255, 255, 0.04) !important;
-    transform: translateX(4px);
-}
-
-/* Add a subtle left border to hovered rows for better tracking */
-.table-wrap table tbody tr:hover td:first-child {
-    position: relative;
+    background-color: rgba(255, 255, 255, 0.035) !important;
+    transform: translateX(6px);
 }
 
 .table-wrap table tbody tr:hover td:first-child::before {
     content: '';
     position: absolute;
-    left: 0;
-    top: 10%;
-    height: 80%;
-    width: 3px;
+    left: -8px;
+    top: 15%;
+    height: 70%;
+    width: 4px;
     background-color: var(--red);
-    border-radius: 0 3px 3px 0;
+    border-radius: 4px;
 }
 
 /* Status Badges micro-interaction */
 .badge {
-    transition: filter 0.2s var(--ease), transform 0.2s var(--ease);
+    transition: filter 0.2s ease, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
 }
 
 .badge:hover {
-    filter: brightness(1.15);
-    transform: translateY(-1px);
+    filter: brightness(1.2);
+    transform: translateY(-1px) scale(1.02);
 }
 
 /* Deadlines & Tasks Cards Hover */
-.card > div[style*="border-radius:8px"] {
-    transition: background 0.2s var(--ease), border-color 0.2s var(--ease), transform 0.2s var(--ease);
+.list-item-card {
+    transition: background 0.2s ease, border-color 0.2s ease, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    padding: 16px !important;
+    border-radius: 12px !important;
 }
 
-.card > div[style*="border-radius:8px"]:hover {
+.list-item-card:hover {
     background: rgba(255,255,255,0.05) !important;
     border-color: rgba(255,255,255,0.15) !important;
-    transform: translateX(3px);
+    transform: translateX(4px);
 }
 
 /* Smooth Tabs (If any are used in editor pages) */
 .tab-btn {
-    transition: color 0.2s var(--ease), border-bottom-color 0.2s var(--ease), background 0.2s var(--ease);
+    transition: color 0.2s ease, border-bottom-color 0.2s ease, background 0.2s ease;
+    border-radius: 6px 6px 0 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 12px 16px !important;
 }
 
 .tab-btn:hover {
-    background: rgba(255, 255, 255, 0.02);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text) !important;
 }
 
 .tab-btn:active {
-    transform: scale(0.98);
+    transform: scale(0.97);
 }

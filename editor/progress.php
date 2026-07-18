@@ -261,7 +261,7 @@ $taskTypeNames = [
 <!-- Thông báo Flash chốt lương -->
 <?php if (!empty($flashMsg)): ?>
 <div class="alert alert-<?= $flashType === 'error' ? 'error' : 'success' ?> mb-24" data-auto-dismiss="5000">
-    <?= $flashType === 'error' ? '✕' : '✓' ?> <?= $flashMsg ?>
+    <?= $flashType === 'error' ? '<i class="ph-fill ph-warning-circle" style="color:var(--red);"></i>' : '<i class="ph-fill ph-check-circle" style="color:var(--green);"></i>' ?> <?= $flashMsg ?>
     <button class="alert-close" style="margin-left:auto; background:none; border:none; color:inherit; cursor:pointer;">×</button>
 </div>
 <?php endif; ?>

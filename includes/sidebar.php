@@ -62,23 +62,23 @@ $menus = [
     ],
     'editor' => [
         [
-            'label' => 'CHÍNH',
+            'label' => '🌸 CHÍNH',
             'items' => [
-                ['page' => 'dashboard',    'label' => 'Dashboard',         'href' => BASE_URL . 'editor/dashboard.php',   'icon' => 'grid'],
-                ['page' => 'manuscripts',  'label' => 'Bản thảo duyệt',    'href' => BASE_URL . 'editor/manuscripts.php', 'icon' => 'file-text'],
+                ['page' => 'dashboard',    'label' => '✨ Dashboard',         'href' => BASE_URL . 'editor/dashboard.php',   'icon' => 'cute-home'],
+                ['page' => 'manuscripts',  'label' => '🎀 Bản thảo duyệt',    'href' => BASE_URL . 'editor/manuscripts.php', 'icon' => 'cute-file'],
             ]
         ],
         [
-            'label' => 'THEO DÕI',
+            'label' => '💖 THEO DÕI',
             'items' => [
-                ['page' => 'progress',  'label' => 'Tiến độ Studio',    'href' => BASE_URL . 'editor/progress.php',   'icon' => 'activity'],
-                ['page' => 'defense',   'label' => 'Bảo vệ tác phẩm',  'href' => BASE_URL . 'editor/defense.php',    'icon' => 'shield'],
+                ['page' => 'progress',  'label' => '🎨 Tiến độ Studio',    'href' => BASE_URL . 'editor/progress.php',   'icon' => 'cute-paint'],
+                ['page' => 'defense',   'label' => '🛡️ Bảo vệ tác phẩm',  'href' => BASE_URL . 'editor/defense.php',    'icon' => 'cute-shield'],
             ]
         ],
         [
-            'label' => 'TÀI KHOẢN',
+            'label' => '🐰 TÀI KHOẢN',
             'items' => [
-                ['page' => 'profile', 'label' => 'Hồ sơ của tôi', 'href' => BASE_URL . 'profile.php', 'icon' => 'user-circle'],
+                ['page' => 'profile', 'label' => '🧸 Hồ sơ của tôi', 'href' => BASE_URL . 'profile.php', 'icon' => 'cute-user'],
             ]
         ],
     ],
@@ -132,6 +132,13 @@ function navIcon(string $name): string {
         'award'        => '<circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/>',
         'check-circle' => '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>',
         'user-circle'  => '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+        
+        // Cute Icons for Editor
+        'cute-home'    => '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" fill="var(--red)" fill-opacity="0.2"/><polyline points="9 22 9 12 15 12 15 22"/>',
+        'cute-file'    => '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" fill="#f472b6" fill-opacity="0.2"/><polyline points="14 2 14 8 20 8"/><path d="M16 13H8M16 17H8M10 9H8"/>',
+        'cute-paint'   => '<path d="M18.13 2.5a2.83 2.83 0 0 0-4 0l-9.88 9.88a2 2 0 0 0 0 2.83l3.53 3.53a2 2 0 0 0 2.83 0L20.5 8.86a2.83 2.83 0 0 0 0-4z" fill="#a78bfa" fill-opacity="0.2"/><path d="M12 12l4-4M3.5 20.5L8 16"/>',
+        'cute-shield'  => '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="#fbbf24" fill-opacity="0.2"/>',
+        'cute-user'    => '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" fill="#38bdf8" fill-opacity="0.2"/><circle cx="12" cy="7" r="4" fill="#38bdf8" fill-opacity="0.2"/>',
     ];
     $d = $icons[$name] ?? '<circle cx="12" cy="12" r="5"/>';
     return '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' . $d . '</svg>';
@@ -139,6 +146,38 @@ function navIcon(string $name): string {
 
 $currentMenuGroups = $menus[$role] ?? [];
 ?>
+
+<?php if ($role === 'editor'): ?>
+<style>
+    /* Dành riêng cho Menu Sidebar của Editor - Cute Style */
+    .sidebar-editor-cute .nav-link {
+        transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        border-radius: 12px;
+        margin-bottom: 4px;
+        position: relative;
+        overflow: hidden;
+    }
+    .sidebar-editor-cute .nav-link:hover {
+        background: linear-gradient(90deg, rgba(255, 182, 193, 0.15) 0%, rgba(255, 105, 180, 0.05) 100%);
+        transform: translateX(5px) scale(1.02);
+        color: #ff9fb4 !important;
+        box-shadow: 0 4px 15px rgba(255, 182, 193, 0.1);
+        border-left: 3px solid #ff9fb4;
+    }
+    .sidebar-editor-cute .nav-link.active {
+        background: linear-gradient(90deg, rgba(230, 57, 70, 0.2) 0%, transparent 100%);
+        border-left: 4px solid var(--red);
+        color: #fff;
+        font-weight: 700;
+        text-shadow: 0 0 8px rgba(255,255,255,0.3);
+    }
+    .sidebar-editor-cute .nav-group-label {
+        color: #ffb3c6;
+        font-weight: 700;
+        text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    }
+</style>
+<?php endif; ?>
 
 <div id="sidebarOverlay" class="sidebar-overlay"></div>
 
@@ -156,7 +195,7 @@ $currentMenuGroups = $menus[$role] ?? [];
     </div>
 
     <!-- Navigation -->
-    <nav class="nav-group" aria-label="Điều hướng chính">
+    <nav class="nav-group <?= $role === 'editor' ? 'sidebar-editor-cute' : '' ?>" aria-label="Điều hướng chính">
         <?php foreach ($currentMenuGroups as $group): ?>
             <p class="nav-group-label"><?= htmlspecialchars($group['label']) ?></p>
             <?php foreach ($group['items'] as $item): ?>
