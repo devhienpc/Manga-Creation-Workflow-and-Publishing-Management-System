@@ -184,8 +184,8 @@ try {
             u_ma.id AS mangaka_id,
             u_ma.username AS mangaka_name,
             COUNT(DISTINCT p.id) AS approved_pages,
-            COALESCE(sr.status, 'pending') AS salary_status,
-            COALESCE(sr.gross_amount, 0) AS paid_amount
+            COALESCE(MAX(sr.status), 'pending') AS salary_status,
+            COALESCE(MAX(sr.gross_amount), 0) AS paid_amount
         FROM tasks t
         JOIN pages p ON t.page_id = p.id
         JOIN chapters c ON p.chapter_id = c.id
@@ -194,26 +194,28 @@ try {
         JOIN users u_ma ON s.mangaka_id = u_ma.id
         LEFT JOIN salary_records sr ON sr.assistant_id = u_as.id 
             AND sr.mangaka_id = u_ma.id 
-            AND sr.month = :month 
-            AND sr.year = :year
+            AND sr.month = :sr_month 
+            AND sr.year = :sr_year
         WHERE t.status = 'approved'
-          AND MONTH(t.updated_at) = :month
-          AND YEAR(t.updated_at) = :year
-        GROUP BY u_as.id, u_ma.id
+          AND MONTH(COALESCE(t.approved_at, t.created_at)) = :w_month
+          AND YEAR(COALESCE(t.approved_at, t.created_at)) = :w_year
+        GROUP BY u_as.id, u_as.username, u_as.avatar, u_ma.id, u_ma.username
         ORDER BY u_as.username ASC
     ");
     $previewQuery->execute([
-        ':month' => $salaryMonth,
-        ':year'  => $salaryYear
+        ':sr_month' => $salaryMonth,
+        ':sr_year'  => $salaryYear,
+        ':w_month'  => $salaryMonth,
+        ':w_year'   => $salaryYear
     ]);
     $salaryPreview = $previewQuery->fetchAll();
 } catch (\Throwable $e) {
     error_log("Lỗi truy vấn preview lương: " . $e->getMessage());
 }
 
-$defaultRate = 50000;
+$defaultRate = 250000;
 try {
-    $st = $db->prepare("SELECT setting_value FROM finance_settings WHERE setting_key = 'default_rate_per_page'");
+    $st = $db->prepare("SELECT value_text FROM settings WHERE key_name = 'default_assistant_rate'");
     $st->execute();
     $val = $st->fetchColumn();
     if ($val !== false) $defaultRate = (float)$val;
@@ -229,11 +231,11 @@ $pageStatusLabels = [
 ];
 
 $taskTypeNames = [
-    'background' => '🟢 Vẽ phông nền (Background)',
-    'shading'    => '🔵 Đổ bóng (Shading)',
-    'effects'    => '🟣 Hiệu ứng (Effects)',
-    'lettering'  => '🟡 Chữ/Thoại (Lettering)',
-    'cleanup'    => '🔴 Đi nét (Cleanup)',
+    'background' => '<i class="fi fi-rr-picture" style="color:#10b981; margin-right:6px;"></i> Vẽ phông nền (Background)',
+    'shading'    => '<i class="fi fi-rr-draw-square" style="color:#3b82f6; margin-right:6px;"></i> Đổ bóng (Shading)',
+    'effects'    => '<i class="fi fi-rr-magic-wand" style="color:#8b5cf6; margin-right:6px;"></i> Hiệu ứng (Effects)',
+    'lettering'  => '<i class="fi fi-rr-comment-alt" style="color:#f59e0b; margin-right:6px;"></i> Chữ/Thoại (Lettering)',
+    'cleanup'    => '<i class="fi fi-rr-paint-brush" style="color:#ef4444; margin-right:6px;"></i> Đi nét (Cleanup)',
 ];
 ?>
 
@@ -279,12 +281,12 @@ $taskTypeNames = [
         <?php if ($chapterId > 0): ?>
             <div style="margin-left:auto; display:flex; gap:8px;">
                 <!-- Manual refresh button -->
-                <button type="button" class="btn btn-secondary btn-sm" onclick="window.location.reload()">
-                    🔄 Làm mới
+                <button type="button" class="btn btn-secondary btn-sm" onclick="window.location.reload()" style="display:inline-flex; align-items:center; gap:6px;">
+                    <i class="fi fi-rr-refresh"></i> Làm mới
                 </button>
                 <!-- Export to CSV button -->
-                <a href="?chapter_id=<?= $chapterId ?>&export=csv" class="btn btn-secondary btn-sm" style="color:#fbbf24; border-color:rgba(251,191,36,.2);">
-                    📥 Xuất báo cáo CSV
+                <a href="?chapter_id=<?= $chapterId ?>&export=csv" class="btn btn-secondary btn-sm" style="color:#fbbf24; border-color:rgba(251,191,36,.2); display:inline-flex; align-items:center; gap:6px;">
+                    <i class="fi fi-rr-download"></i> Xuất báo cáo CSV
                 </a>
             </div>
         <?php endif; ?>
@@ -293,7 +295,7 @@ $taskTypeNames = [
 
 <?php if ($chapterId <= 0): ?>
     <div class="card" style="text-align:center; padding:60px 20px; color:var(--text-muted);">
-        <span style="font-size:3rem;">📊</span>
+        <i class="fi fi-rr-chart-histogram" style="font-size:3rem; color:var(--text-dim); display:block; margin-bottom:12px;"></i>
         <p style="margin-top:10px;">Vui lòng chọn bộ truyện và chương truyện ở trên để theo dõi tiến độ chi tiết.</p>
     </div>
 <?php else: ?>
@@ -406,7 +408,7 @@ $taskTypeNames = [
     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px; margin-bottom: 20px;">
         <div>
             <p class="card-title" style="font-size:1.1rem; font-weight:700; color:#fbbf24; display:flex; align-items:center; gap:8px; margin-bottom:4px;">
-                💰 Tính Lương Trợ Lý (Salary Payout Engine)
+                <i class="fi fi-rr-usd-circle" style="color:#fbbf24; margin-right:8px;"></i> Tính Lương Trợ Lý (Salary Payout Engine)
             </p>
             <p class="card-subtitle" style="margin-bottom:0;">Tính lương thực tế dựa trên số trang đã duyệt (Approved) trong tháng.</p>
         </div>
@@ -525,7 +527,7 @@ $taskTypeNames = [
     <?php if (!empty($salaryPreview) && $hasUnpaid): ?>
         <div style="margin-top:20px; display:flex; justify-content:flex-end;">
             <button id="btnPayAll" class="btn btn-primary" style="background:#10b981; border-color:#10b981; font-weight:700; display:inline-flex; align-items:center; gap:8px;" onclick="payAllSalaries()">
-                🏦 Tính lương cho tất cả trợ lý
+                <i class="fi fi-rr-bank"></i> Tính lương cho tất cả trợ lý
             </button>
         </div>
     <?php endif; ?>

@@ -183,7 +183,6 @@ $menus = [
     ],
 ];
 
-
 // SVG / Font icons helper
 function navIcon(string $name): string {
     $icons = [

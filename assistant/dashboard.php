@@ -34,8 +34,8 @@ $stmt = $db->prepare(
     "SELECT COUNT(DISTINCT page_id) FROM tasks 
      WHERE assigned_to = ? 
        AND status = 'approved' 
-       AND MONTH(created_at) = ? 
-       AND YEAR(created_at) = ?"
+       AND MONTH(COALESCE(approved_at, created_at)) = ? 
+       AND YEAR(COALESCE(approved_at, created_at)) = ?"
 );
 $stmt->execute([$uid, $currentMonth, $currentYear]);
 $completedPagesMonth = (int)$stmt->fetchColumn();
@@ -54,8 +54,14 @@ if ($monthlyEarnings !== false && $monthlyEarnings !== null) {
     $earningsPreview = (float)$monthlyEarnings;
     $isOfficialEarnings = true;
 } else {
-    // Tạm tính dựa trên số trang hoàn thành * 250,000đ
-    $fallbackRate = 250000;
+    // Đọc đơn giá mỗi trang từ finance_settings (do board/admin cấu hình)
+    $fallbackRate = 50000; // Giá trị mặc định nếu không tìm thấy trong DB
+    try {
+        $rateStmt = $db->prepare("SELECT setting_value FROM finance_settings WHERE setting_key = 'default_rate_per_page'");
+        $rateStmt->execute();
+        $rateVal = $rateStmt->fetchColumn();
+        if ($rateVal !== false) $fallbackRate = (float)$rateVal;
+    } catch (\Throwable $e) {}
     $earningsPreview = $completedPagesMonth * $fallbackRate;
     $isOfficialEarnings = false;
 }
@@ -157,7 +163,7 @@ $taskStatusLabels = [
                 <?= number_format($earningsPreview) ?> đ
             </div>
             <p class="text-xs text-muted mt-8" style="font-style: italic;">
-                <?= $isOfficialEarnings ? '✓ Dữ liệu chính thức' : '* Ước tính (250Kđ/trang)' ?>
+                <?= $isOfficialEarnings ? '✓ Dữ liệu chính thức' : '* Ước tính (' . number_format($fallbackRate) . 'đ/trang)' ?>
             </p>
         </div>
         <div class="stat-icon" style="color:#fbbf24; font-size:1.8rem; opacity:0.8; display:flex; align-items:center; justify-content:center;"><i class="fi fi-sr-dollar"></i></div>

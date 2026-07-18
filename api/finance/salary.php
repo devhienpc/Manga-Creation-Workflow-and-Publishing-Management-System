@@ -35,6 +35,12 @@ $db = getDB();
  */
 function getFinanceSetting($db, $key, $default) {
     try {
+        if ($key === 'default_rate_per_page') {
+            $stmt = $db->prepare("SELECT value_text FROM settings WHERE key_name = 'default_assistant_rate'");
+            $stmt->execute();
+            $val = $stmt->fetchColumn();
+            if ($val !== false) return $val;
+        }
         $stmt = $db->prepare("SELECT setting_value FROM finance_settings WHERE setting_key = ?");
         $stmt->execute([$key]);
         $val = $stmt->fetchColumn();
@@ -66,7 +72,7 @@ if ($action === 'calculate') {
     }
 
     // Đơn giá mỗi trang
-    $defaultRate = getFinanceSetting($db, 'default_rate_per_page', 50000);
+    $defaultRate = getFinanceSetting($db, 'default_rate_per_page', 250000);
     $rate = isset($_POST['rate_per_page']) && (float)$_POST['rate_per_page'] > 0 
         ? (float)$_POST['rate_per_page'] 
         : (float)$defaultRate;
@@ -82,8 +88,8 @@ if ($action === 'calculate') {
             WHERE t.assigned_to = :assistant_id
               AND s.mangaka_id = :mangaka_id
               AND t.status = 'approved'
-              AND MONTH(t.updated_at) = :month
-              AND YEAR(t.updated_at) = :year
+              AND MONTH(COALESCE(t.approved_at, t.created_at)) = :month
+              AND YEAR(COALESCE(t.approved_at, t.created_at)) = :year
         ");
         $pagesStmt->execute([
             ':assistant_id' => $assistant_id,
@@ -258,7 +264,7 @@ if ($action === 'calculate_all') {
         exit();
     }
 
-    $defaultRate = getFinanceSetting($db, 'default_rate_per_page', 50000);
+    $defaultRate = getFinanceSetting($db, 'default_rate_per_page', 250000);
     $rate = isset($_POST['rate_per_page']) && (float)$_POST['rate_per_page'] > 0 
         ? (float)$_POST['rate_per_page'] 
         : (float)$defaultRate;
@@ -273,8 +279,8 @@ if ($action === 'calculate_all') {
             JOIN series s ON c.series_id = s.id
             WHERE s.mangaka_id = ?
               AND t.status = 'approved'
-              AND MONTH(t.updated_at) = ?
-              AND YEAR(t.updated_at) = ?
+              AND MONTH(COALESCE(t.approved_at, t.created_at)) = ?
+              AND YEAR(COALESCE(t.approved_at, t.created_at)) = ?
         ");
         $asQuery->execute([$mangaka_id, $month, $year]);
         $assistants = $asQuery->fetchAll(PDO::FETCH_COLUMN);
@@ -304,8 +310,8 @@ if ($action === 'calculate_all') {
                 WHERE t.assigned_to = :as_id
                   AND s.mangaka_id = :ma_id
                   AND t.status = 'approved'
-                  AND MONTH(t.updated_at) = :month
-                  AND YEAR(t.updated_at) = :year
+                  AND MONTH(COALESCE(t.approved_at, t.created_at)) = :month
+                  AND YEAR(COALESCE(t.approved_at, t.created_at)) = :year
             ");
             $pagesStmt->execute([
                 ':as_id' => $asId,
