@@ -47,7 +47,8 @@ $menus = [
         [
             'label' => 'TÀI KHOẢN',
             'items' => [
-                ['page' => 'profile', 'label' => 'Hồ sơ của tôi', 'href' => BASE_URL . 'profile.php', 'icon' => 'user-circle'],
+                ['page' => 'wallet',  'label' => 'Ví điện tử',    'href' => BASE_URL . 'wallet/index.php', 'icon' => 'wallet'],
+                ['page' => 'profile', 'label' => 'Hồ sơ của tôi', 'href' => BASE_URL . 'profile.php',      'icon' => 'user-circle'],
             ]
         ],
     ],
@@ -69,7 +70,8 @@ $menus = [
         [
             'label' => 'TÀI KHOẢN',
             'items' => [
-                ['page' => 'profile', 'label' => 'Hồ sơ của tôi', 'href' => BASE_URL . 'profile.php', 'icon' => 'user-circle'],
+                ['page' => 'wallet',  'label' => 'Ví điện tử',    'href' => BASE_URL . 'wallet/index.php', 'icon' => 'wallet'],
+                ['page' => 'profile', 'label' => 'Hồ sơ của tôi', 'href' => BASE_URL . 'profile.php',      'icon' => 'user-circle'],
             ]
         ],
     ],
@@ -91,7 +93,7 @@ $menus = [
         [
             'label' => 'TÀI KHOẢN',
             'items' => [
-                ['page' => 'profile', 'label' => 'Hồ sơ của tôi', 'href' => BASE_URL . 'profile.php', 'icon' => 'fi fi-sr-user'],
+                ['page' => 'profile', 'label' => 'Hồ sơ của tôi', 'href' => BASE_URL . 'profile.php',      'icon' => 'fi fi-sr-user'],
             ]
         ],
     ],
@@ -106,9 +108,10 @@ $menus = [
         [
             'label' => 'QUẢN TRỊ',
             'items' => [
-                ['page' => 'ranking',   'label' => 'Xếp hạng tổng quát', 'href' => BASE_URL . 'board/ranking.php',   'icon' => 'award'],
-                ['page' => 'decisions', 'label' => 'Quyết định xuất bản', 'href' => BASE_URL . 'board/decisions.php', 'icon' => 'check-circle'],
-                ['page' => 'admin_dashboard', 'label' => 'Quản trị hệ thống', 'href' => BASE_URL . 'admin/index.php', 'icon' => 'grid'],
+                ['page' => 'ranking',      'label' => 'Xếp hạng tổng quát',  'href' => BASE_URL . 'board/ranking.php',      'icon' => 'award'],
+                ['page' => 'decisions',    'label' => 'Quyết định xuất bản',  'href' => BASE_URL . 'board/decisions.php',    'icon' => 'check-circle'],
+                ['page' => 'admin_dashboard', 'label' => 'Quản trị hệ thống', 'href' => BASE_URL . 'admin/index.php',        'icon' => 'grid'],
+                ['page' => 'withdrawals', 'label' => 'Quản lý rút tiền',     'href' => BASE_URL . 'admin/withdrawals.php', 'icon' => 'dollar-sign'],
             ]
         ],
         [
@@ -145,6 +148,7 @@ function navIcon(string $name): string {
         'award'        => '<circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/>',
         'check-circle' => '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>',
         'user-circle'  => '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+        'wallet'       => '<rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/>',
         
         // AI Tools icons
         'zap'          => '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
