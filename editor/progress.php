@@ -179,29 +179,46 @@ $salaryPreview = [];
 try {
     $previewQuery = $db->prepare("
         SELECT 
+            sr.assistant_id,
+            u_as.username AS assistant_name,
+            u_as.avatar AS assistant_avatar,
+            sr.mangaka_id,
+            u_ma.username AS mangaka_name,
+            sr.approved_pages AS approved_tasks,
+            sr.gross_amount AS calculated_gross_amount,
+            sr.status AS salary_status,
+            sr.gross_amount AS paid_amount
+        FROM salary_records sr
+        JOIN users u_as ON sr.assistant_id = u_as.id
+        JOIN users u_ma ON sr.mangaka_id = u_ma.id
+        WHERE sr.month = :sr_month AND sr.year = :sr_year
+
+        UNION ALL
+
+        SELECT 
             u_as.id AS assistant_id,
             u_as.username AS assistant_name,
             u_as.avatar AS assistant_avatar,
             u_ma.id AS mangaka_id,
             u_ma.username AS mangaka_name,
-            COUNT(DISTINCT p.id) AS approved_pages,
-            COALESCE(MAX(sr.status), 'pending') AS salary_status,
-            COALESCE(MAX(sr.gross_amount), 0) AS paid_amount
+            COUNT(t.id) AS approved_tasks,
+            SUM(t.price) AS calculated_gross_amount,
+            'pending' AS salary_status,
+            0 AS paid_amount
         FROM tasks t
         JOIN pages p ON t.page_id = p.id
         JOIN chapters c ON p.chapter_id = c.id
         JOIN series s ON c.series_id = s.id
         JOIN users u_as ON t.assigned_to = u_as.id
         JOIN users u_ma ON s.mangaka_id = u_ma.id
-        LEFT JOIN salary_records sr ON sr.assistant_id = u_as.id 
-            AND sr.mangaka_id = u_ma.id 
-            AND sr.month = :sr_month 
-            AND sr.year = :sr_year
         WHERE t.status = 'approved'
+          AND t.salary_record_id IS NULL
           AND MONTH(COALESCE(t.approved_at, t.created_at)) = :w_month
           AND YEAR(COALESCE(t.approved_at, t.created_at)) = :w_year
         GROUP BY u_as.id, u_as.username, u_as.avatar, u_ma.id, u_ma.username
-        ORDER BY u_as.username ASC
+        HAVING COUNT(t.id) > 0
+
+        ORDER BY assistant_name ASC, salary_status DESC
     ");
     $previewQuery->execute([
         ':sr_month' => $salaryMonth,
@@ -243,7 +260,7 @@ $taskTypeNames = [
 <!-- Thông báo Flash chốt lương -->
 <?php if (!empty($flashMsg)): ?>
 <div class="alert alert-<?= $flashType === 'error' ? 'error' : 'success' ?> mb-24" data-auto-dismiss="5000">
-    <?= $flashType === 'error' ? '<i class="ph-fill ph-warning-circle" style="color:var(--red);"></i>' : '<i class="ph-fill ph-check-circle" style="color:var(--green);"></i>' ?> <?= $flashMsg ?>
+    <?= $flashType === 'error' ? '?' : '?' ?> <?= $flashMsg ?>
     <button class="alert-close" style="margin-left:auto; background:none; border:none; color:inherit; cursor:pointer;">×</button>
 </div>
 <?php endif; ?>
@@ -411,7 +428,7 @@ $taskTypeNames = [
             <p class="card-title" style="font-size:1.1rem; font-weight:700; color:#fbbf24; display:flex; align-items:center; gap:8px; margin-bottom:4px;">
                 <i class="fi fi-rr-usd-circle" style="color:#fbbf24; margin-right:8px;"></i> Tính Lương Trợ Lý (Salary Payout Engine)
             </p>
-            <p class="card-subtitle" style="margin-bottom:0;">Tính lương thực tế dựa trên số trang đã duyệt (Approved) trong tháng.</p>
+            <p class="card-subtitle" style="margin-bottom:0;">Tính lương thực tế dựa trên các nhiệm vụ đã duyệt (Approved) trong tháng.</p>
         </div>
         
         <!-- Bộ lọc Tháng/Năm -->
@@ -437,8 +454,8 @@ $taskTypeNames = [
                 <tr style="border-bottom:1px solid var(--border); font-size:0.75rem; text-transform:uppercase; color:var(--text-muted);">
                     <th style="padding:12px 24px; text-align:left;">Trợ lý</th>
                     <th style="padding:12px 24px; text-align:left;">Họa sĩ chi trả</th>
-                    <th style="padding:12px 24px; text-align:center;">Số trang đã duyệt</th>
-                    <th style="padding:12px 24px; text-align:right;">Đơn giá mặc định</th>
+                    <th style="padding:12px 24px; text-align:center;">Số nhiệm vụ đã duyệt</th>
+                    <th style="padding:12px 24px; text-align:right;">Đơn giá TB / nhiệm vụ</th>
                     <th style="padding:12px 24px; text-align:right;">Lương dự kiến</th>
                     <th style="padding:12px 24px; text-align:center;">Trạng thái</th>
                     <th style="padding:12px 24px; text-align:center;">Thao tác</th>
@@ -449,14 +466,16 @@ $taskTypeNames = [
                     <tr>
                         <td colspan="7" style="text-align:center; padding:48px; color:var(--text-muted);">
                             <i class="fi fi-rr-envelope-open" style="font-size:2rem; display:block; margin-bottom:10px; opacity:0.35;"></i>
-                            Không có nhiệm vụ/trang vẽ nào được duyệt hoàn thành trong tháng <?= sprintf('%02d', $salaryMonth) ?>/<?= $salaryYear ?>.
+                            Không có nhiệm vụ vẽ nào được duyệt hoàn thành trong tháng <?= sprintf('%02d', $salaryMonth) ?>/<?= $salaryYear ?>.
                         </td>
                     </tr>
                 <?php else: ?>
                     <?php 
                     $hasUnpaid = false;
                     foreach ($salaryPreview as $sp): 
-                        $grossAmt = $sp['approved_pages'] * $defaultRate;
+                        $grossAmt = $sp['salary_status'] === 'paid' ? (float)$sp['paid_amount'] : (float)$sp['calculated_gross_amount'];
+                        $approved_tasks = (int)$sp['approved_tasks'];
+                        $avgRate = $approved_tasks > 0 ? $grossAmt / $approved_tasks : 0;
                         $isPaid = $sp['salary_status'] === 'paid';
                         if (!$isPaid) $hasUnpaid = true;
                     ?>
@@ -482,12 +501,12 @@ $taskTypeNames = [
                             
                             <!-- Trang đã duyệt -->
                             <td style="padding:12px 24px; text-align:center; font-weight:700; color:#fff;">
-                                <?= $sp['approved_pages'] ?> trang
+                                <?= $approved_tasks ?> nhiệm vụ
                             </td>
                             
                             <!-- Đơn giá -->
                             <td style="padding:12px 24px; text-align:right; font-family:'SF Mono',monospace; color:var(--text-muted);">
-                                <?= format_money($defaultRate) ?> ₫
+                                <?= format_money($avgRate) ?> ₫
                             </td>
                             
                             <!-- Lương dự kiến -->
@@ -513,7 +532,7 @@ $taskTypeNames = [
                                 <?php else: ?>
                                     <button class="btn btn-primary" 
                                             style="padding:4px 10px; font-size:0.75rem; font-weight:700; background:#fbbf24; border-color:#fbbf24; color:#1a1a2e;"
-                                            onclick="paySalary(<?= $sp['assistant_id'] ?>, <?= $sp['mangaka_id'] ?>, <?= $defaultRate ?>, this)">
+                                            onclick="paySalary(<?= $sp['assistant_id'] ?>, <?= $sp['mangaka_id'] ?>, <?= $avgRate ?>, this)">
                                         Tính lương
                                     </button>
                                 <?php endif; ?>

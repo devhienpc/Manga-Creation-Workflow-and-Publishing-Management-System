@@ -107,11 +107,33 @@ $stmt = $db->prepare("
 $stmt->execute();
 $activeAssistants = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+// Lấy đơn giá mặc định của các loại nhiệm vụ
+$rates = [];
+foreach (['background', 'shading', 'effects', 'lettering', 'cleanup'] as $type) {
+    $stmtRate = $db->prepare("SELECT value_text FROM settings WHERE key_name = ? LIMIT 1");
+    $stmtRate->execute(['default_rate_' . $type]);
+    $val = $stmtRate->fetchColumn();
+    if ($val === false) {
+        $fallbacks = [
+            'background' => 100000,
+            'shading'    => 60000,
+            'effects'    => 50000,
+            'lettering'  => 30000,
+            'cleanup'    => 20000
+        ];
+        $val = $fallbacks[$type];
+    }
+    $rates[$type] = (float)$val;
+}
+
 $pageTitle    = 'Review & Giao Việc Trợ Lý';
 $activePage   = 'tasks';
 $allowedRoles = [ROLES['MANGAKA']];
 require_once __DIR__ . '/../includes/layout.php';
 ?>
+<script>
+const DEFAULT_TASK_RATES = <?= json_encode($rates) ?>;
+</script>
 
 <style>
 /* Scoped styles for Tasks Manager Dashboard */
@@ -686,6 +708,11 @@ require_once __DIR__ . '/../includes/layout.php';
                     <div class="mb-3">
                         <label class="form-label text-muted small fw-bold">Hạn chót</label>
                         <input type="date" id="taskDueDate" class="form-control" />
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label text-muted small fw-bold">Đơn giá nhiệm vụ (VND)</label>
+                        <input type="number" id="taskPrice" class="form-control" placeholder="100000" min="0" required />
                     </div>
                     
                     <div class="d-flex gap-2 justify-content-end mt-4">

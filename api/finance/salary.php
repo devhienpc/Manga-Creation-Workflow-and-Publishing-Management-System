@@ -71,16 +71,9 @@ if ($action === 'calculate') {
         exit();
     }
 
-    // Đơn giá mỗi trang
-    $defaultRate = getFinanceSetting($db, 'default_rate_per_page', 250000);
-    $rate = isset($_POST['rate_per_page']) && (float)$_POST['rate_per_page'] > 0 
-        ? (float)$_POST['rate_per_page'] 
-        : (float)$defaultRate;
-
     try {
-        // 1. Đếm số trang đã được approved của assistant này vẽ cho mangaka này trong tháng/năm
-        $pagesStmt = $db->prepare("
-            SELECT COUNT(DISTINCT p.id) as approved_pages
+        $tasksStmt = $db->prepare("
+            SELECT t.id, t.price
             FROM tasks t
             JOIN pages p ON t.page_id = p.id
             JOIN chapters c ON p.chapter_id = c.id
@@ -90,21 +83,33 @@ if ($action === 'calculate') {
               AND t.status = 'approved'
               AND MONTH(COALESCE(t.approved_at, t.created_at)) = :month
               AND YEAR(COALESCE(t.approved_at, t.created_at)) = :year
+              AND (t.salary_record_id IS NULL OR t.salary_record_id IN (
+                  SELECT id FROM salary_records WHERE status = 'insufficient_funds' AND assistant_id = :assistant_id_sub AND mangaka_id = :mangaka_id_sub
+              ))
         ");
-        $pagesStmt->execute([
-            ':assistant_id' => $assistant_id,
-            ':mangaka_id'    => $mangaka_id,
-            ':month'         => $month,
-            ':year'          => $year
+        $tasksStmt->execute([
+            ':assistant_id'     => $assistant_id,
+            ':mangaka_id'       => $mangaka_id,
+            ':month'            => $month,
+            ':year'             => $year,
+            ':assistant_id_sub' => $assistant_id,
+            ':mangaka_id_sub'   => $mangaka_id
         ]);
-        $approved_pages = (int)$pagesStmt->fetchColumn();
+        $eligibleTasks = $tasksStmt->fetchAll(PDO::FETCH_ASSOC);
+        $approved_tasks = count($eligibleTasks);
+        $gross = 0.0;
+        $taskIds = [];
+        foreach ($eligibleTasks as $et) {
+            $gross += (float)$et['price'];
+            $taskIds[] = (int)$et['id'];
+        }
 
-        $gross = $approved_pages * $rate;
-
-        if ($gross <= 0) {
-            echo json_encode(['success' => false, 'message' => 'Không có trang vẽ nào được phê duyệt hoàn thành trong thời gian này.']);
+        if ($gross <= 0 || empty($taskIds)) {
+            echo json_encode(['success' => false, 'message' => 'Không có nhiệm vụ vẽ chưa chốt nào được phê duyệt hoàn thành trong thời gian này.']);
             exit();
         }
+
+        $avg_rate = $approved_tasks > 0 ? $gross / $approved_tasks : 0;
 
         // Lấy tên các bên phục vụ thông báo
         $nameStmt = $db->prepare("SELECT id, username FROM users WHERE id IN (?, ?)");
@@ -122,17 +127,22 @@ if ($action === 'calculate') {
         }
 
         if ((float)$mangakaWallet['balance'] < $gross) {
-            // Lưu trạng thái insufficient_funds vào salary_records
+            // Xóa các bản ghi insufficient_funds cũ của cặp trợ lý-họa sĩ trong tháng/năm này
+            $db->prepare("DELETE FROM salary_records WHERE assistant_id = ? AND mangaka_id = ? AND month = ? AND year = ? AND status = 'insufficient_funds'")
+               ->execute([$assistant_id, $mangaka_id, $month, $year]);
+
+            // Lưu trạng thái insufficient_funds vào salary_records mới
             $insS = $db->prepare("
                 INSERT INTO salary_records (assistant_id, mangaka_id, month, year, approved_pages, rate_per_page, gross_amount, status)
                 VALUES (?, ?, ?, ?, ?, ?, ?, 'insufficient_funds')
-                ON DUPLICATE KEY UPDATE 
-                    approved_pages = VALUES(approved_pages), 
-                    rate_per_page = VALUES(rate_per_page), 
-                    gross_amount = VALUES(gross_amount), 
-                    status = 'insufficient_funds'
             ");
-            $insS->execute([$assistant_id, $mangaka_id, $month, $year, $approved_pages, $rate, $gross]);
+            $insS->execute([$assistant_id, $mangaka_id, $month, $year, $approved_tasks, $avg_rate, $gross]);
+            $recordId = (int)$db->lastInsertId();
+
+            if ($recordId > 0 && !empty($taskIds)) {
+                $inClause = implode(',', $taskIds);
+                $db->prepare("UPDATE tasks SET salary_record_id = ? WHERE id IN ($inClause)")->execute([$recordId]);
+            }
 
             // Gửi thông báo cho mangaka
             try {
@@ -181,7 +191,7 @@ if ($action === 'calculate') {
             INSERT INTO transactions (wallet_id, type, amount, balance_before, balance_after, description, reference_type, status)
             VALUES (?, 'salary_pay', ?, ?, ?, ?, 'salary', 'completed')
         ");
-        $mDesc = "Trả lương tháng $month/$year cho $assistantName ($approved_pages trang x " . format_money($rate) . " ₫/trang)";
+        $mDesc = "Trả lương tháng $month/$year cho $assistantName ($approved_tasks nhiệm vụ, tổng cộng: " . format_money($gross) . " ₫)";
         $insMTx->execute([$mWallet['id'], -$gross, $mBalBefore, $mBalAfter, $mDesc]);
 
         // Cộng ví assistant
@@ -193,21 +203,26 @@ if ($action === 'calculate') {
             INSERT INTO transactions (wallet_id, type, amount, balance_before, balance_after, description, reference_type, status)
             VALUES (?, 'salary_receive', ?, ?, ?, ?, 'salary', 'completed')
         ");
-        $aDesc = "Nhận lương tháng $month/$year từ họa sĩ $mangakaName ($approved_pages trang x " . format_money($rate) . " ₫/trang)";
+        $aDesc = "Nhận lương tháng $month/$year từ họa sĩ $mangakaName ($approved_tasks nhiệm vụ, tổng cộng: " . format_money($gross) . " ₫)";
         $insATx->execute([$aWallet['id'], $gross, $aBalBefore, $aBalAfter, $aDesc]);
 
-        // Lưu / Cập nhật bảng salary_records thành 'paid'
+        // Xóa bất kỳ bản ghi insufficient_funds nào trước đó của cặp này trong tháng/năm này
+        $db->prepare("DELETE FROM salary_records WHERE assistant_id = ? AND mangaka_id = ? AND month = ? AND year = ? AND status = 'insufficient_funds'")
+           ->execute([$assistant_id, $mangaka_id, $month, $year]);
+
+        // Lưu bản ghi salary_records mới thành 'paid'
         $insS = $db->prepare("
             INSERT INTO salary_records (assistant_id, mangaka_id, month, year, approved_pages, rate_per_page, gross_amount, status, paid_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, 'paid', NOW())
-            ON DUPLICATE KEY UPDATE 
-                approved_pages = VALUES(approved_pages), 
-                rate_per_page = VALUES(rate_per_page), 
-                gross_amount = VALUES(gross_amount), 
-                status = 'paid',
-                paid_at = NOW()
         ");
-        $insS->execute([$assistant_id, $mangaka_id, $month, $year, $approved_pages, $rate, $gross]);
+        $insS->execute([$assistant_id, $mangaka_id, $month, $year, $approved_tasks, $avg_rate, $gross]);
+        $recordId = (int)$db->lastInsertId();
+
+        // Cập nhật tasks.salary_record_id để liên kết với bản ghi này
+        if ($recordId > 0 && !empty($taskIds)) {
+            $inClause = implode(',', $taskIds);
+            $db->prepare("UPDATE tasks SET salary_record_id = ? WHERE id IN ($inClause)")->execute([$recordId]);
+        }
 
         $db->commit();
 
@@ -229,8 +244,8 @@ if ($action === 'calculate') {
 
         echo json_encode([
             'success'        => true,
-            'approved_pages' => $approved_pages,
-            'rate_per_page'  => $rate,
+            'approved_pages' => $approved_tasks,
+            'rate_per_page'  => $avg_rate,
             'gross_amount'   => $gross,
             'message'        => "Đã thanh toán lương cho trợ lý {$assistantName} thành công!"
         ]);
@@ -264,13 +279,8 @@ if ($action === 'calculate_all') {
         exit();
     }
 
-    $defaultRate = getFinanceSetting($db, 'default_rate_per_page', 250000);
-    $rate = isset($_POST['rate_per_page']) && (float)$_POST['rate_per_page'] > 0 
-        ? (float)$_POST['rate_per_page'] 
-        : (float)$defaultRate;
-
     try {
-        // 1. Quét tìm tất cả Assistant có các nhiệm vụ được approved vẽ cho mangaka này trong tháng chỉ định
+        // 1. Quét tìm tất cả Assistant có các nhiệm vụ chưa thanh toán vẽ cho mangaka này trong tháng chỉ định
         $asQuery = $db->prepare("
             SELECT DISTINCT t.assigned_to
             FROM tasks t
@@ -281,12 +291,15 @@ if ($action === 'calculate_all') {
               AND t.status = 'approved'
               AND MONTH(COALESCE(t.approved_at, t.created_at)) = ?
               AND YEAR(COALESCE(t.approved_at, t.created_at)) = ?
+              AND (t.salary_record_id IS NULL OR t.salary_record_id IN (
+                  SELECT id FROM salary_records WHERE status = 'insufficient_funds' AND mangaka_id = ?
+              ))
         ");
-        $asQuery->execute([$mangaka_id, $month, $year]);
+        $asQuery->execute([$mangaka_id, $month, $year, $mangaka_id]);
         $assistants = $asQuery->fetchAll(PDO::FETCH_COLUMN);
 
         if (empty($assistants)) {
-            echo json_encode(['success' => false, 'message' => 'Không tìm thấy trợ lý nào có nhiệm vụ hoàn thành trong tháng này.']);
+            echo json_encode(['success' => false, 'message' => 'Không tìm thấy trợ lý nào có nhiệm vụ chưa thanh toán hoàn thành trong tháng này.']);
             exit();
         }
 
@@ -297,12 +310,8 @@ if ($action === 'calculate_all') {
 
         // 2. Chạy thanh toán lương tuần tự cho từng Trợ lý
         foreach ($assistants as $asId) {
-            // Tạo cURL hoặc gọi nội bộ trực tiếp
-            // Để đơn giản và nhanh gọn, ta gọi logic của calculate trực tiếp bằng hàm hoặc thực thi nội bộ
-            
-            // Tính số trang
-            $pagesStmt = $db->prepare("
-                SELECT COUNT(DISTINCT p.id) as approved_pages
+            $tasksStmt = $db->prepare("
+                SELECT t.id, t.price
                 FROM tasks t
                 JOIN pages p ON t.page_id = p.id
                 JOIN chapters c ON p.chapter_id = c.id
@@ -312,17 +321,30 @@ if ($action === 'calculate_all') {
                   AND t.status = 'approved'
                   AND MONTH(COALESCE(t.approved_at, t.created_at)) = :month
                   AND YEAR(COALESCE(t.approved_at, t.created_at)) = :year
+                  AND (t.salary_record_id IS NULL OR t.salary_record_id IN (
+                      SELECT id FROM salary_records WHERE status = 'insufficient_funds' AND assistant_id = :as_id_sub AND mangaka_id = :ma_id_sub
+                  ))
             ");
-            $pagesStmt->execute([
-                ':as_id' => $asId,
-                ':ma_id' => $mangaka_id,
-                ':month' => $month,
-                ':year'  => $year
+            $tasksStmt->execute([
+                ':as_id'       => $asId,
+                ':ma_id'       => $mangaka_id,
+                ':month'       => $month,
+                ':year'        => $year,
+                ':as_id_sub'   => $asId,
+                ':ma_id_sub'   => $mangaka_id
             ]);
-            $approved_pages = (int)$pagesStmt->fetchColumn();
-            $gross = $approved_pages * $rate;
+            $eligibleTasks = $tasksStmt->fetchAll(PDO::FETCH_ASSOC);
+            $approved_tasks = count($eligibleTasks);
+            $gross = 0.0;
+            $taskIds = [];
+            foreach ($eligibleTasks as $et) {
+                $gross += (float)$et['price'];
+                $taskIds[] = (int)$et['id'];
+            }
 
-            if ($gross <= 0) continue;
+            if ($gross <= 0 || empty($taskIds)) continue;
+
+            $avg_rate = $approved_tasks > 0 ? $gross / $approved_tasks : 0;
 
             $asNameStmt = $db->prepare("SELECT username FROM users WHERE id = ?");
             $asNameStmt->execute([$asId]);
@@ -331,13 +353,22 @@ if ($action === 'calculate_all') {
             // Kiểm tra ví mangaka trước khi trả
             $mangakaWallet = get_wallet($mangaka_id);
             if ((float)$mangakaWallet['balance'] < $gross) {
+                // Xóa các bản ghi insufficient_funds cũ của cặp trợ lý-họa sĩ trong tháng/năm này
+                $db->prepare("DELETE FROM salary_records WHERE assistant_id = ? AND mangaka_id = ? AND month = ? AND year = ? AND status = 'insufficient_funds'")
+                   ->execute([$asId, $mangaka_id, $month, $year]);
+
                 // Đánh dấu thiếu tiền
                 $insS = $db->prepare("
                     INSERT INTO salary_records (assistant_id, mangaka_id, month, year, approved_pages, rate_per_page, gross_amount, status)
                     VALUES (?, ?, ?, ?, ?, ?, ?, 'insufficient_funds')
-                    ON DUPLICATE KEY UPDATE status = 'insufficient_funds', approved_pages = VALUES(approved_pages), rate_per_page = VALUES(rate_per_page), gross_amount = VALUES(gross_amount)
                 ");
-                $insS->execute([$asId, $mangaka_id, $month, $year, $approved_pages, $rate, $gross]);
+                $insS->execute([$asId, $mangaka_id, $month, $year, $approved_tasks, $avg_rate, $gross]);
+                $recordId = (int)$db->lastInsertId();
+
+                if ($recordId > 0 && !empty($taskIds)) {
+                    $inClause = implode(',', $taskIds);
+                    $db->prepare("UPDATE tasks SET salary_record_id = ? WHERE id IN ($inClause)")->execute([$recordId]);
+                }
                 
                 $failedCount++;
                 $failedList[] = $assistantName . " (Thiếu số dư)";
@@ -369,7 +400,7 @@ if ($action === 'calculate_all') {
                     VALUES (?, 'salary_pay', ?, ?, ?, ?, 'salary', 'completed')
                 ")->execute([
                     $mWallet['id'], -$gross, $mBalBefore, $mBalAfter,
-                    "Trả lương tháng $month/$year cho $assistantName ($approved_pages trang x " . format_money($rate) . " ₫/trang)"
+                    "Trả lương tháng $month/$year cho $assistantName ($approved_tasks nhiệm vụ, tổng cộng: " . format_money($gross) . " ₫)"
                 ]);
 
                 // Cộng
@@ -384,20 +415,25 @@ if ($action === 'calculate_all') {
                     VALUES (?, 'salary_receive', ?, ?, ?, ?, 'salary', 'completed')
                 ")->execute([
                     $aWallet['id'], $gross, $aBalBefore, $aBalAfter,
-                    "Nhận lương tháng $month/$year từ họa sĩ $mangakaName ($approved_pages trang x " . format_money($rate) . " ₫/trang)"
+                    "Nhận lương tháng $month/$year từ họa sĩ $mangakaName ($approved_tasks nhiệm vụ, tổng cộng: " . format_money($gross) . " ₫)"
                 ]);
 
-                // Bảng lương
-                $db->prepare("
+                // Xóa bản ghi insufficient_funds cũ
+                $db->prepare("DELETE FROM salary_records WHERE assistant_id = ? AND mangaka_id = ? AND month = ? AND year = ? AND status = 'insufficient_funds'")
+                   ->execute([$asId, $mangaka_id, $month, $year]);
+
+                // Bảng lương mới
+                $insS = $db->prepare("
                     INSERT INTO salary_records (assistant_id, mangaka_id, month, year, approved_pages, rate_per_page, gross_amount, status, paid_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?, 'paid', NOW())
-                    ON DUPLICATE KEY UPDATE 
-                        approved_pages = VALUES(approved_pages), 
-                        rate_per_page = VALUES(rate_per_page), 
-                        gross_amount = VALUES(gross_amount), 
-                        status = 'paid',
-                        paid_at = NOW()
-                ")->execute([$asId, $mangaka_id, $month, $year, $approved_pages, $rate, $gross]);
+                ");
+                $insS->execute([$asId, $mangaka_id, $month, $year, $approved_tasks, $avg_rate, $gross]);
+                $recordId = (int)$db->lastInsertId();
+
+                if ($recordId > 0 && !empty($taskIds)) {
+                    $inClause = implode(',', $taskIds);
+                    $db->prepare("UPDATE tasks SET salary_record_id = ? WHERE id IN ($inClause)")->execute([$recordId]);
+                }
 
                 $db->commit();
 

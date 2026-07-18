@@ -33,9 +33,9 @@ try {
    2. THỐNG KÊ TỔNG QUAN
    ══════════════════════════════════════════════════ */
 $allTimeEarnings = 0.0;
-$allTimePages    = 0;
+$allTimeTasks    = 0;
 $yearEarnings    = 0.0;
-$yearPages       = 0;
+$yearTasks       = 0;
 
 try {
     // Tổng thu nhập chốt thành công trọn đời
@@ -43,20 +43,20 @@ try {
     $stmt->execute([$uid]);
     $allTimeEarnings = (float)$stmt->fetchColumn();
 
-    // Tổng số trang đã được duyệt trọn đời
+    // Tổng số nhiệm vụ đã được duyệt trọn đời
     $stmt = $db->prepare("SELECT SUM(approved_pages) FROM salary_records WHERE assistant_id = ? AND status = 'paid'");
     $stmt->execute([$uid]);
-    $allTimePages = (int)$stmt->fetchColumn();
+    $allTimeTasks = (int)$stmt->fetchColumn();
 
     // Tổng thu nhập chốt thành công trong năm đang lọc
     $stmt = $db->prepare("SELECT SUM(gross_amount) FROM salary_records WHERE assistant_id = ? AND year = ? AND status = 'paid'");
     $stmt->execute([$uid, $selectedYear]);
     $yearEarnings = (float)$stmt->fetchColumn();
 
-    // Tổng số trang được duyệt và đã thanh toán trong năm đang lọc
+    // Tổng số nhiệm vụ được duyệt và đã thanh toán trong năm đang lọc
     $stmt = $db->prepare("SELECT SUM(approved_pages) FROM salary_records WHERE assistant_id = ? AND year = ? AND status = 'paid'");
     $stmt->execute([$uid, $selectedYear]);
-    $yearPages = (int)$stmt->fetchColumn();
+    $yearTasks = (int)$stmt->fetchColumn();
 } catch (\Throwable $e) {}
 
 /* ══════════════════════════════════════════════════
@@ -196,12 +196,12 @@ $statusMeta = [
         </div>
         <div class="stat-icon" style="color:#34d399; font-size:1.8rem; opacity:0.8;"><i class="fi fi-sr-dollar"></i></div>
     </div>
-    <!-- Year Pages -->
+    <!-- Year Tasks -->
     <div class="card stat-card" style="padding: 20px; display: flex; justify-content: space-between; align-items: center;">
         <div>
-            <p class="text-xs text-muted font-bold" style="text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Trang hoàn thành năm <?= $selectedYear ?></p>
-            <div class="stat-number" style="font-size: 2rem; font-weight:800; color:#60a5fa;"><?= $yearPages ?> trang</div>
-            <p class="text-xs text-muted mt-8">Trọn đời: <?= $allTimePages ?> trang vẽ đã trả tiền</p>
+            <p class="text-xs text-muted font-bold" style="text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Nhiệm vụ hoàn thành năm <?= $selectedYear ?></p>
+            <div class="stat-number" style="font-size: 2rem; font-weight:800; color:#60a5fa;"><?= $yearTasks ?> nhiệm vụ</div>
+            <p class="text-xs text-muted mt-8">Trọn đời: <?= $allTimeTasks ?> nhiệm vụ vẽ đã trả tiền</p>
         </div>
         <div class="stat-icon" style="color:#60a5fa; font-size:1.8rem; opacity:0.8;"><i class="fi fi-sr-palette"></i></div>
     </div>
@@ -241,8 +241,8 @@ $statusMeta = [
                             <tr style="text-align: left; border-bottom: 1px solid var(--border);">
                                 <th style="padding:14px 18px;">Tháng/Năm</th>
                                 <th style="padding:14px 18px;">Họa sĩ chi trả</th>
-                                <th style="padding:14px 18px; text-align:center;">Số trang</th>
-                                <th style="padding:14px 18px; text-align:right;">Đơn giá</th>
+                                <th style="padding:14px 18px; text-align:center;">Số nhiệm vụ</th>
+                                <th style="padding:14px 18px; text-align:right;">Đơn giá TB / nhiệm vụ</th>
                                 <th style="padding:14px 18px; text-align:right;">Lương</th>
                                 <th style="padding:14px 18px; text-align:center;">Trạng thái</th>
                             </tr>
@@ -260,7 +260,7 @@ $statusMeta = [
                                         <?= htmlspecialchars($item['mangaka_name']) ?>
                                     </td>
                                     <td style="padding:14px 18px; text-align:center; font-weight:700;">
-                                        <?= $item['approved_pages'] ?> trang
+                                        <?= $item['approved_pages'] ?> nhiệm vụ
                                     </td>
                                     <td style="padding:14px 18px; text-align:right; color:var(--text-muted); font-family: 'SF Mono', monospace;">
                                         <?= format_money($item['rate_per_page']) ?> ₫

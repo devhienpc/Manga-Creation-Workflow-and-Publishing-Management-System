@@ -35,6 +35,108 @@ function getDB() {
                 die("Kết nối cơ sở dữ liệu thất bại: " . $e->getMessage() . " | SQLite: " . $se->getMessage());
             }
         }
+
+        if ($pdo !== null) {
+            try {
+                $priceColExists = false;
+                $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+                if ($driver === 'mysql') {
+                    $stmtCol = $pdo->query("SHOW COLUMNS FROM tasks LIKE 'price'");
+                    $priceColExists = (bool)$stmtCol->fetch();
+                } else {
+                    $stmtCol = $pdo->query("PRAGMA table_info(tasks)");
+                    $cols = $stmtCol->fetchAll();
+                    foreach ($cols as $col) {
+                        if ($col['name'] === 'price') {
+                            $priceColExists = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (!$priceColExists) {
+                    $pdo->exec("ALTER TABLE tasks ADD COLUMN price DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER version");
+                }
+
+                $salaryRecordIdExists = false;
+                if ($driver === 'mysql') {
+                    $stmtCol = $pdo->query("SHOW COLUMNS FROM tasks LIKE 'salary_record_id'");
+                    $salaryRecordIdExists = (bool)$stmtCol->fetch();
+                } else {
+                    $stmtCol = $pdo->query("PRAGMA table_info(tasks)");
+                    $cols = $stmtCol->fetchAll();
+                    foreach ($cols as $col) {
+                        if ($col['name'] === 'salary_record_id') {
+                            $salaryRecordIdExists = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (!$salaryRecordIdExists) {
+                    if ($driver === 'mysql') {
+                        $pdo->exec("ALTER TABLE tasks ADD COLUMN salary_record_id INT DEFAULT NULL AFTER price");
+                        try {
+                            $pdo->exec("ALTER TABLE tasks ADD CONSTRAINT fk_tasks_salary_record FOREIGN KEY (salary_record_id) REFERENCES salary_records(id) ON DELETE SET NULL");
+                        } catch (\Throwable $e) {}
+                    } else {
+                        $pdo->exec("ALTER TABLE tasks ADD COLUMN salary_record_id INTEGER DEFAULT NULL");
+                    }
+                }
+
+                if ($driver === 'mysql') {
+                    try {
+                        $pdo->exec("ALTER TABLE salary_records ADD INDEX idx_salary_assistant (assistant_id)");
+                    } catch (\Throwable $e) {}
+
+                    try {
+                        $pdo->exec("ALTER TABLE salary_records DROP INDEX unique_salary");
+                    } catch (\Throwable $e) {}
+
+                    try {
+                        $pdo->exec("
+                            UPDATE tasks t
+                            JOIN pages p ON t.page_id = p.id
+                            JOIN chapters c ON p.chapter_id = c.id
+                            JOIN series s ON c.series_id = s.id
+                            JOIN salary_records sr ON t.assigned_to = sr.assistant_id
+                              AND s.mangaka_id = sr.mangaka_id
+                              AND MONTH(COALESCE(t.approved_at, t.created_at)) = sr.month
+                              AND YEAR(COALESCE(t.approved_at, t.created_at)) = sr.year
+                            SET t.salary_record_id = sr.id
+                            WHERE t.status = 'approved' 
+                              AND t.salary_record_id IS NULL
+                              AND COALESCE(t.approved_at, t.created_at) <= COALESCE(sr.paid_at, sr.created_at)
+                        ");
+                    } catch (\Throwable $e) {}
+                }
+
+                $pdo->exec("
+                    CREATE TABLE IF NOT EXISTS settings (
+                        key_name VARCHAR(100) PRIMARY KEY,
+                        value_text TEXT,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                ");
+
+                $defaultRates = [
+                    'default_rate_background' => '100000',
+                    'default_rate_shading'    => '60000',
+                    'default_rate_effects'    => '50000',
+                    'default_rate_lettering'  => '30000',
+                    'default_rate_cleanup'    => '20000'
+                ];
+                foreach ($defaultRates as $key => $val) {
+                    $stmt = $pdo->prepare("SELECT COUNT(*) FROM settings WHERE key_name = ?");
+                    $stmt->execute([$key]);
+                    if ($stmt->fetchColumn() == 0) {
+                        $pdo->prepare("INSERT INTO settings (key_name, value_text) VALUES (?, ?)")->execute([$key, $val]);
+                    }
+                }
+            } catch (\Throwable $migError) {
+                error_log("Migration error: " . $migError->getMessage());
+            }
+        }
     }
     return $pdo;
 }
