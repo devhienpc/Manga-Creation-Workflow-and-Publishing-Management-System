@@ -164,41 +164,46 @@ if (!$resized) {
     exit();
 }
 
-$imageData = base64_encode(file_get_contents($resized));
+$imageBytes = array_values(unpack('C*', file_get_contents($resized)));
 
-if (empty($imageData)) {
+if (empty($imageBytes)) {
     echo json_encode(['success' => false, 'message' => 'Không thể đọc dữ liệu ảnh.']);
     exit();
 }
 
-// Danh sách IP tĩnh của Hugging Face làm cấu hình dự phòng DNS
-$hfIps = ['18.215.226.73', '3.216.91.240', '54.210.198.81', '52.204.223.43'];
 $usedFallback = false;
 $resultImageData = null;
 $httpCode = 0;
 $contentType = '';
 $curlError = '';
 
-// ── Gọi Hugging Face Inference API ───────────────────────────────────────
+// ── Gọi Cloudflare Workers AI API ───────────────────────────────────────
+$cfModel = '@cf/runwayml/stable-diffusion-v1-5-img2img';
+$cfUrl = 'https://api.cloudflare.com/client/v4/accounts/' . CLOUDFLARE_ACCOUNT_ID . '/ai/run/' . $cfModel;
+
+$prompt = match($modelKey) {
+    'manga' => 'high quality colorized manga, vibrant blue and purple tones, masterpiece, highly detailed',
+    'anime' => 'high quality anime screenshot, vibrant sunset warm colors, highly detailed, studio ghibli style',
+    default => 'high quality colorized image, vibrant colors, detailed, masterpiece'
+};
+
 $ch = curl_init();
 curl_setopt_array($ch, [
-    CURLOPT_URL            => 'https://api-inference.huggingface.co/models/' . $model,
+    CURLOPT_URL            => $cfUrl,
     CURLOPT_POST           => true,
     CURLOPT_HTTPHEADER     => [
-        'Authorization: Bearer ' . HUGGINGFACE_API_KEY,
+        'Authorization: Bearer ' . CLOUDFLARE_API_TOKEN,
         'Content-Type: application/json',
     ],
     CURLOPT_POSTFIELDS     => json_encode([
-        'inputs'  => $imageData,
-        'options' => ['wait_for_model' => true],
+        'prompt'   => $prompt,
+        'image'    => $imageBytes,
+        'strength' => 0.65,
+        'guidance' => 7.5
     ]),
     CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_TIMEOUT        => 12, // Timeout nhanh hơn để chuyển sang fallback
-    CURLOPT_SSL_VERIFYPEER => false, // Cho phép bỏ qua chứng chỉ nếu gọi qua IP trực tiếp
-    CURLOPT_IPRESOLVE      => CURL_IPRESOLVE_V4,
-    CURLOPT_RESOLVE        => [
-        "api-inference.huggingface.co:443:" . $hfIps[array_rand($hfIps)]
-    ],
+    CURLOPT_TIMEOUT        => 30, // Cloudflare AI có thể mất 10-20s
+    CURLOPT_SSL_VERIFYPEER => false
 ]);
 
 $response    = curl_exec($ch);
@@ -207,19 +212,24 @@ $curlError   = curl_error($ch);
 $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
 curl_close($ch);
 
-// Xác định xem API có trả về ảnh hợp lệ hay không (Inference API trả về image binary nếu thành công)
+// Xác định xem API có trả về ảnh hợp lệ hay không (Inference API trả về image binary nếu thành công, Cloudflare trả về binary image)
 $isValidImage = ($httpCode === 200 && str_contains($contentType, 'image/') && strlen($response) > 500);
 
 if ($isValidImage) {
     $resultImageData = $response;
 } else {
-    // Nếu model đang load (503), chuyển hướng cho client tự động retry theo estimated_time
-    if ($httpCode === 503 && !$curlError) {
-        $decoded = json_decode($response, true);
-        $estTime = (int)($decoded['estimated_time'] ?? 20);
-        echo json_encode(['loading' => true, 'estimated_time' => $estTime]);
-        exit();
+    // Cloudflare AI thường trả về JSON nếu có lỗi
+    $decoded = json_decode($response, true);
+    if ($httpCode === 200 && isset($decoded['result']['image'])) {
+        // Một số version trả JSON base64
+        $resultImageData = base64_decode($decoded['result']['image']);
+        $isValidImage = true;
     }
+}
+
+if ($isValidImage && $resultImageData) {
+    // Ok, pass to next step
+} else {
 
     // Nếu các trường hợp khác lỗi (404, 500, lỗi kết nối, hoặc model Salesforce trả JSON text chứ không trả ảnh):
     // Kích hoạt bộ lọc giả lập màu bằng GD
@@ -267,7 +277,7 @@ if ($isValidImage) {
             'result_url' => BASE_URL . $resultUrl,
             'fallback'   => true,
             'log_id'     => $logId ?? null,
-            'message'    => 'Đã áp dụng bộ lọc màu manga giả lập (API HuggingFace hiện tại đang bận hoặc quá tải).'
+            'message'    => 'Đã áp dụng bộ lọc màu manga giả lập (API Cloudflare Workers AI hiện tại đang bận hoặc quá tải).'
         ]);
         exit();
     }

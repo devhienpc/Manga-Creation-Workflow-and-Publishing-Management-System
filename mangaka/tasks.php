@@ -668,7 +668,7 @@ const DEFAULT_TASK_RATES = <?= json_encode($rates) ?>;
             </div>
             
             <!-- FORM TẠO TASK MỚI (Hiện sau khi vẽ vùng xong) -->
-            <div class="card bg-dark border-secondary mb-3 shadow" id="taskFormCard" style="display: none; border-radius: 12px;">
+            <div class="card bg-dark border-secondary mb-3 shadow" id="taskFormCard" style="display: none; border-radius: 12px; z-index: 50; position: relative;">
                 <div class="card-header border-bottom border-secondary bg-primary-subtle text-primary p-3 d-flex justify-content-between align-items-center">
                     <strong class="text-white"><i class="fi fi-rr-add text-primary"></i> GIAO NHIỆM VỤ MỚI</strong>
                     <span class="badge bg-primary" id="regionCoords">Coords</span>
@@ -689,16 +689,72 @@ const DEFAULT_TASK_RATES = <?= json_encode($rates) ?>;
                         </select>
                     </div>
                     
-                    <div class="mb-3">
+                    <div class="mb-3 position-relative custom-select-wrapper" id="taskTypeDropdown">
                         <label class="form-label text-muted small fw-bold">Loại việc</label>
-                        <select id="taskType" class="form-select">
-                            <option value="background">🎨 Tô màu nền (background)</option>
-                            <option value="shading">🌑 Tô bóng (shading)</option>
-                            <option value="effects">✨ Hiệu ứng (effects)</option>
-                            <option value="lettering">💬 Chữ/Thoại (lettering)</option>
-                            <option value="cleanup">🧹 Làm sạch (cleanup)</option>
-                        </select>
+                        <input type="hidden" id="taskType" value="background" />
+                        <div class="form-control d-flex align-items-center justify-content-between cursor-pointer custom-select-trigger" style="background: var(--bg-input); border-color: var(--border);">
+                            <span id="taskTypeDisplay"><i class="fi fi-rr-paint-roller text-danger"></i>Tô màu nền (background)</span>
+                            <i class="fi fi-rr-angle-small-down text-muted"></i>
+                        </div>
+                        <div class="custom-options shadow-lg">
+                            <div class="custom-option selected" data-value="background"><i class="fi fi-rr-paint-roller text-danger"></i>Tô màu nền (background)</div>
+                            <div class="custom-option" data-value="shading"><i class="fi fi-rr-eclipse-alt text-secondary"></i>Tô bóng (shading)</div>
+                            <div class="custom-option" data-value="effects"><i class="fi fi-rr-magic-wand text-warning"></i>Hiệu ứng (effects)</div>
+                            <div class="custom-option" data-value="lettering"><i class="fi fi-rr-comment-alt-dots text-info"></i>Chữ/Thoại (lettering)</div>
+                            <div class="custom-option" data-value="cleanup"><i class="fi fi-rr-broom text-success"></i>Làm sạch (cleanup)</div>
+                        </div>
                     </div>
+                    
+                    <style>
+                    .custom-select-wrapper { position: relative; }
+                    .custom-select-wrapper .custom-select-trigger { cursor: pointer; }
+                    .custom-options {
+                        position: absolute; top: 100%; left: 0; right: 0; z-index: 10;
+                        background: var(--bg-input); border: 1px solid var(--border);
+                        border-radius: var(--radius-sm); margin-top: 4px;
+                        display: none; overflow: hidden;
+                        box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+                    }
+                    .custom-options.open { display: block; animation: fadeSlideUp 0.15s ease forwards; }
+                    .custom-option {
+                        padding: 10px 13px; cursor: pointer; display: flex; align-items: center;
+                        font-size: 0.9rem; transition: background 0.2s;
+                    }
+                    .custom-option:hover { background: rgba(255,255,255,0.05); }
+                    .custom-option.selected { background: rgba(230,57,70,0.1); color: #fff; border-left: 2px solid var(--red); }
+                    .custom-option i, #taskTypeDisplay i { margin-right: 10px; font-size: 1.1rem; }
+                    </style>
+                    
+                    <script>
+                    document.addEventListener('DOMContentLoaded', () => {
+                        const wrapper = document.getElementById('taskTypeDropdown');
+                        const trigger = wrapper.querySelector('.custom-select-trigger');
+                        const optionsPanel = wrapper.querySelector('.custom-options');
+                        const options = wrapper.querySelectorAll('.custom-option');
+                        const hiddenInput = document.getElementById('taskType');
+                        const display = document.getElementById('taskTypeDisplay');
+
+                        trigger.addEventListener('click', (e) => {
+                            optionsPanel.classList.toggle('open');
+                            e.stopPropagation();
+                        });
+
+                        options.forEach(opt => {
+                            opt.addEventListener('click', function(e) {
+                                options.forEach(o => o.classList.remove('selected'));
+                                this.classList.add('selected');
+                                hiddenInput.value = this.dataset.value;
+                                display.innerHTML = this.innerHTML;
+                                optionsPanel.classList.remove('open');
+                                e.stopPropagation();
+                            });
+                        });
+
+                        document.addEventListener('click', () => {
+                            optionsPanel.classList.remove('open');
+                        });
+                    });
+                    </script>
                     
                     <div class="mb-3">
                         <label class="form-label text-muted small fw-bold">Mô tả công việc (min 20 ký tự)</label>

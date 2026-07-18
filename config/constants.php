@@ -180,3 +180,7 @@ define('HUGGINGFACE_API_KEY', env('HUGGINGFACE_API_KEY', ''));
 // Google Gemini API (dùng cho tính năng Phân đoạn vùng)
 // Đăng ký tại: https://aistudio.google.com/app/apikey
 define('GEMINI_API_KEY', env('GEMINI_API_KEY', ''));
+
+// Cloudflare Workers AI API (dùng cho tính năng Tô màu mới)
+define('CLOUDFLARE_ACCOUNT_ID', env('CLOUDFLARE_ACCOUNT_ID', ''));
+define('CLOUDFLARE_API_TOKEN', env('CLOUDFLARE_API_TOKEN', ''));

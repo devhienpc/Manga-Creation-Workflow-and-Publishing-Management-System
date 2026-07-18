@@ -390,7 +390,20 @@ function showTaskForm(x, y, w, h) {
     // Clear inputs
     document.getElementById('taskDescription').value = '';
     document.getElementById('taskDueDate').value = '';
-    document.getElementById('taskType').value = 'background';
+    // Reset taskType hidden input and custom dropdown UI
+    const taskTypeEl = document.getElementById('taskType');
+    if (taskTypeEl) {
+        taskTypeEl.value = 'background';
+        const display = document.getElementById('taskTypeDisplay');
+        if (display) {
+            const defaultOpt = document.querySelector('.custom-option[data-value="background"]');
+            if (defaultOpt) {
+                display.innerHTML = defaultOpt.innerHTML;
+                document.querySelectorAll('.custom-option').forEach(o => o.classList.remove('selected'));
+                defaultOpt.classList.add('selected');
+            }
+        }
+    }
     
     const priceInput = document.getElementById('taskPrice');
     if (priceInput && typeof DEFAULT_TASK_RATES !== 'undefined') {

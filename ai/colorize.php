@@ -199,7 +199,7 @@ require_once __DIR__ . '/../includes/layout.php';
         <span class="current">AI Tô Màu</span>
     </div>
     <h1>Tô Màu Tự Động <span class="ai-badge">✨ AI</span></h1>
-    <p>Upload trang manga trắng đen, AI sẽ tô màu tự động bằng Hugging Face</p>
+    <p>Upload trang manga trắng đen, AI sẽ tô màu tự động bằng <strong>Cloudflare Workers AI</strong> (Stable Diffusion img2img)</p>
 </div>
 
 <div class="colorize-layout">
@@ -212,7 +212,7 @@ require_once __DIR__ . '/../includes/layout.php';
                 <p class="card-title">Upload Ảnh Manga</p>
                 <p class="card-subtitle">JPG, PNG — tối đa 5MB</p>
             </div>
-            <span class="ai-badge">HuggingFace</span>
+            <span class="ai-badge" style="background: linear-gradient(135deg, #f6821f, #faad14);">☁️ Cloudflare AI</span>
         </div>
 
         <!-- Upload zone -->
@@ -222,7 +222,7 @@ require_once __DIR__ . '/../includes/layout.php';
              ondrop="handleDrop(event)">
             <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp"
                    onchange="handleFileSelect(this)">
-            <span class="upload-icon">🎨</span>
+            <span class="upload-icon">☁️</span>
             <strong>Kéo ảnh vào đây hoặc click để chọn</strong>
             <p>Hỗ trợ JPG, PNG, WebP — Tối đa 5MB</p>
         </div>
@@ -246,8 +246,8 @@ require_once __DIR__ . '/../includes/layout.php';
                 <input type="radio" name="model" value="manga" checked
                        onchange="updateModelCard()">
                 <div>
-                    <div class="model-card-title">🖌️ Manga Colorization</div>
-                    <div class="model-card-desc">Phong cách manga truyền thống, tối ưu cho truyện tranh đen trắng</div>
+                    <div class="model-card-title">🖌️ Manga Style</div>
+                    <div class="model-card-desc">Prompt: tông màu xanh tím manga, tối ưu cho truyện tranh đen trắng truyền thống</div>
                 </div>
             </label>
 
@@ -256,7 +256,7 @@ require_once __DIR__ . '/../includes/layout.php';
                        onchange="updateModelCard()">
                 <div>
                     <div class="model-card-title">🌸 Anime Style</div>
-                    <div class="model-card-desc">Phong cách anime Nhật Bản, màu sắc tươi sáng và sinh động</div>
+                    <div class="model-card-desc">Prompt: hoàng hôn ấm áp phong cách Studio Ghibli, màu sắc tươi sáng sinh động</div>
                 </div>
             </label>
 
@@ -265,7 +265,7 @@ require_once __DIR__ . '/../includes/layout.php';
                        onchange="updateModelCard()">
                 <div>
                     <div class="model-card-title">⚡ Auto Color</div>
-                    <div class="model-card-desc">Tô màu tự động thông minh, phù hợp với nhiều phong cách</div>
+                    <div class="model-card-desc">Prompt: tô màu tự động với gam màu sinh động phong phú, đa phong cách</div>
                 </div>
             </label>
         </div>
@@ -337,9 +337,9 @@ require_once __DIR__ . '/../includes/layout.php';
         <p style="font-weight: 700; font-size: .85rem; margin-bottom: 10px;">💡 Mẹo sử dụng</p>
         <ul style="font-size: .8rem; color: var(--text-muted); line-height: 1.8; padding-left: 18px; margin: 0;">
             <li>Ảnh rõ nét, nét vẽ đậm cho kết quả tốt nhất</li>
-            <li>Model lần đầu chạy cần 20–60 giây để khởi động</li>
+            <li>Cloudflare Workers AI xử lý nhanh, thường dưới 20 giây</li>
             <li>Ảnh sẽ được resize về 512×512 để tối ưu tốc độ</li>
-            <li>Kết quả phụ thuộc vào model — thử nhiều model để so sánh</li>
+            <li>Thử nhiều phong cách (Manga / Anime / Auto) để so sánh kết quả</li>
         </ul>
     </div>
 </div>
@@ -511,7 +511,7 @@ function showResult(url, isFallback = false, fallbackMsg = '') {
         badgeEl.style.background = 'linear-gradient(135deg, #f59e0b, #d97706)';
         badgeEl.style.boxShadow = '0 2px 10px rgba(245,158,11,.4)';
     } else {
-        subtitleEl.textContent = 'Đã tô màu thành công bằng AI!';
+        subtitleEl.textContent = 'Đã tô màu thành công bằng Cloudflare Workers AI!';
         badgeEl.textContent = '✅ Xong';
         badgeEl.style.background = 'linear-gradient(135deg, #10b981, #059669)';
         badgeEl.style.boxShadow = '0 2px 10px rgba(16,185,129,.4)';
