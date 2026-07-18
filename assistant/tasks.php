@@ -341,20 +341,26 @@ require_once __DIR__ . '/../includes/layout.php';
     </div>
 
     <!-- Filter -->
-    <div class="filter-bar">
-        <div class="filter-tabs">
-            <button class="filter-btn active" data-filter="revision">🔴 Cần sửa <span class="nav-badge" id="filterBadgeRevision" style="display:none;">0</span></button>
-            <button class="filter-btn" data-filter="all">📋 Tất cả</button>
-            <button class="filter-btn" data-filter="pending">⚪ Chờ nhận</button>
-            <button class="filter-btn" data-filter="in_progress">🔵 Đang làm</button>
-            <button class="filter-btn" data-filter="submitted">🟠 Chờ duyệt</button>
-            <button class="filter-btn" data-filter="approved">✅ Hoàn thành</button>
-        </div>
-        <div class="search-box">
-            <i class="fi fi-rr-search"></i>
-            <input type="text" id="taskSearch" placeholder="Tìm theo truyện/chương..." />
-        </div>
-    </div>
+    <div class="filter-tabs">
+    <button class="filter-btn active" data-filter="revision">
+        <i class="fi fi-sr-undo"></i> Cần sửa <span class="nav-badge" id="filterBadgeRevision" style="display:none;">0</span>
+    </button>
+    <button class="filter-btn" data-filter="all">
+        <i class="fi fi-sr-list"></i> Tất cả
+    </button>
+    <button class="filter-btn" data-filter="pending">
+        <i class="fi fi-sr-inbox"></i> Chờ nhận
+    </button>
+    <button class="filter-btn" data-filter="in_progress">
+        <i class="fi fi-sr-pencil"></i> Đang làm
+    </button>
+    <button class="filter-btn" data-filter="submitted">
+        <i class="fi fi-sr-hourglass-end"></i> Chờ duyệt
+    </button>
+    <button class="filter-btn" data-filter="approved">
+        <i class="fi fi-sr-check-circle"></i> Hoàn thành
+    </button>
+</div>
 
     <!-- Tasks List (rendered by JS) -->
     <div id="tasksListContainer"></div>

@@ -486,6 +486,72 @@ $statusLabels = [
     font-weight: 700;
     color: #fff;
 }
+/* =========================================================
+   HIỆU ỨNG ĐỘNG DÀNH RIÊNG CHO TRANG RÚT TIỀN
+========================================================= */
+@keyframes fadeSlideInRight {
+    from { opacity: 0; transform: translateX(-15px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+@keyframes popIn {
+    0% { opacity: 0; transform: scale(0.95); }
+    100% { opacity: 1; transform: scale(1); }
+}
+
+/* 1. Hiệu ứng xuất hiện mượt mà cho các phần tử chính */
+.balance-hero { 
+    animation: popIn 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; 
+}
+.step-section:nth-child(1) { opacity: 0; animation: fadeSlideInRight 0.4s ease-out 0.1s forwards; }
+.step-section:nth-child(2) { opacity: 0; animation: fadeSlideInRight 0.4s ease-out 0.25s forwards; }
+.step-section:nth-child(3) { opacity: 0; animation: fadeSlideInRight 0.4s ease-out 0.4s forwards; }
+
+.wd-grid > div:last-child .wd-card {
+    opacity: 0;
+    animation: popIn 0.5s ease-out 0.3s forwards;
+}
+
+/* 2. Tương tác hover cho danh sách tài khoản đã lưu */
+.saved-acc-item {
+    transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), border-color 0.25s ease, box-shadow 0.25s ease !important;
+    will-change: transform;
+}
+.saved-acc-item:hover {
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+    border-color: rgba(255,255,255,0.15) !important;
+}
+
+/* 3. Hiệu ứng trượt dòng cho lịch sử rút tiền */
+.recent-wd-item {
+    transition: transform 0.2s ease, background-color 0.2s ease;
+    padding: 10px 8px !important;
+    border-radius: 6px;
+    margin: 0 -8px; 
+}
+.recent-wd-item:hover {
+    transform: translateX(4px);
+    background-color: rgba(255,255,255,0.03);
+}
+
+/* 4. Nổi bật các Tab phương thức thanh toán (Ngân hàng, MoMo, ZaloPay) */
+.method-tab {
+    transition: transform 0.2s ease, color 0.2s ease;
+}
+.method-tab:not(.active):hover {
+    transform: translateY(-2px);
+    color: #10b981 !important;
+}
+
+/* 5. Hiệu ứng nhịp đập lôi cuốn cho nút Gửi yêu cầu (chỉ khi đủ điều kiện bấm) */
+@keyframes gentlePulse {
+    0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+    70% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+.btn-submit-wd:not(:disabled) {
+    animation: gentlePulse 2s infinite;
+}   
 </style>
 
 <!-- Toast notification container -->

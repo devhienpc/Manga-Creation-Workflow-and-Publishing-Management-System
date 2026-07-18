@@ -73,11 +73,11 @@ $menus = [
             ]
         ],
         [
-            'label' => '💰 TÀI CHÍNH',
+            'label' => 'TÀI CHÍNH',
             'items' => [
-                ['page' => 'wallet_index', 'label' => '💼 Ví của tôi',  'href' => BASE_URL . 'wallet/index.php',    'icon' => 'wallet'],
-                ['page' => 'wallet_withdraw', 'label' => '💸 Rút tiền',  'href' => BASE_URL . 'wallet/withdraw.php', 'icon' => 'withdraw'],
-                ['page' => 'wallet_withdrawals', 'label' => '📋 Lịch sử rút', 'href' => BASE_URL . 'wallet/withdrawals.php', 'icon' => 'history'],
+                ['page' => 'wallet_index', 'label' => 'Ví của tôi',  'href' => BASE_URL . 'wallet/index.php',    'icon' => 'wallet'],
+                ['page' => 'wallet_withdraw', 'label' => 'Rút tiền',  'href' => BASE_URL . 'wallet/withdraw.php', 'icon' => 'withdraw'],
+                ['page' => 'wallet_withdrawals', 'label' => 'Lịch sử rút', 'href' => BASE_URL . 'wallet/withdrawals.php', 'icon' => 'history'],
             ]
         ],
         [
@@ -103,12 +103,12 @@ $menus = [
             ]
         ],
         [
-            'label' => '💰 THU NHẬP',
+            'label' => 'THU NHẬP',
             'items' => [
-                ['page' => 'wallet_index', 'label' => '💼 Ví của tôi',  'href' => BASE_URL . 'wallet/index.php',    'icon' => 'wallet'],
-                ['page' => 'wallet_withdraw', 'label' => '💸 Rút tiền',  'href' => BASE_URL . 'wallet/withdraw.php', 'icon' => 'withdraw'],
-                ['page' => 'earnings',  'label' => '📋 Bảng lương',     'href' => BASE_URL . 'assistant/earnings.php',  'icon' => 'dollar-sign'],
-                ['page' => 'wallet_withdrawals', 'label' => '📋 Lịch sử rút', 'href' => BASE_URL . 'wallet/withdrawals.php', 'icon' => 'history'],
+                ['page' => 'wallet_index', 'label' => 'Ví của tôi',  'href' => BASE_URL . 'wallet/index.php',    'icon' => 'wallet'],
+                ['page' => 'wallet_withdraw', 'label' => 'Rút tiền',  'href' => BASE_URL . 'wallet/withdraw.php', 'icon' => 'withdraw'],
+                ['page' => 'earnings',  'label' => 'Bảng lương',     'href' => BASE_URL . 'assistant/earnings.php',  'icon' => 'receipt'],
+                ['page' => 'wallet_withdrawals', 'label' => 'Lịch sử rút', 'href' => BASE_URL . 'wallet/withdrawals.php', 'icon' => 'history'],
             ]
         ],
         [
@@ -159,8 +159,8 @@ $menus = [
             'items' => [
                 ['page' => 'ranking',      'label' => 'Xếp hạng tổng quát', 'href' => BASE_URL . 'board/ranking.php',      'icon' => 'award'],
                 ['page' => 'decisions',    'label' => 'Quyết định xuất bản', 'href' => BASE_URL . 'board/decisions.php',    'icon' => 'check-circle'],
-                ['page' => 'withdrawals',  'label' => '🏦 Quản lý rút tiền',  'href' => BASE_URL . 'admin/withdrawals.php', 'icon' => 'money-check'],
-                ['page' => 'fin_stats',    'label' => '📊 Thống kê tài chính', 'href' => BASE_URL . 'admin/withdrawals.php#tab-stats', 'icon' => 'stats'],
+                ['page' => 'withdrawals',  'label' => 'Quản lý rút tiền',  'href' => BASE_URL . 'admin/withdrawals.php', 'icon' => 'money-check'],
+                ['page' => 'fin_stats',    'label' => 'Thống kê tài chính', 'href' => BASE_URL . 'admin/withdrawals.php#tab-stats', 'icon' => 'stats'],
                 ['page' => 'admin_dashboard', 'label' => 'Quản trị hệ thống', 'href' => BASE_URL . 'admin/index.php',     'icon' => 'grid'],
             ]
         ],
@@ -176,12 +176,13 @@ $menus = [
             'label' => 'QUẢN TRỊ HỆ THỐNG',
             'items' => [
                 ['page' => 'admin_dashboard', 'label' => 'Dashboard Admin',    'href' => BASE_URL . 'admin/index.php',         'icon' => 'grid'],
-                ['page' => 'withdrawals',     'label' => '🏦 Quản lý rút tiền',  'href' => BASE_URL . 'admin/withdrawals.php',   'icon' => 'money-check'],
-                ['page' => 'fin_stats',       'label' => '📊 Thống kê tài chính', 'href' => BASE_URL . 'admin/withdrawals.php#tab-stats', 'icon' => 'stats'],
+                ['page' => 'withdrawals',     'label' => 'Quản lý rút tiền',  'href' => BASE_URL . 'admin/withdrawals.php',   'icon' => 'money-check'],
+                ['page' => 'fin_stats',       'label' => 'Thống kê tài chính', 'href' => BASE_URL . 'admin/withdrawals.php#tab-stats', 'icon' => 'stats'],
             ]
         ],
     ],
 ];
+
 
 // SVG / Font icons helper
 function navIcon(string $name): string {
@@ -193,6 +194,7 @@ function navIcon(string $name): string {
         'bell'         => 'fi-rr-bell',
         'clipboard'    => 'fi-rr-clipboard',
         'dollar-sign'  => 'fi-rr-usd-circle',
+        'receipt'      => 'fi-rr-receipt', // Thay cho Bảng lương
         'file-text'    => 'fi-rr-document',
         'activity'     => 'fi-rr-pulse',
         'shield'       => 'fi-rr-shield',
@@ -202,7 +204,7 @@ function navIcon(string $name): string {
         'user-circle'  => 'fi-rr-user',
         'wallet'       => 'fi-rr-wallet',
         'money-check'  => 'fi-rr-money-check',
-        'withdraw'     => 'fi-rr-arrow-up-from-bracket',
+        'withdraw'     => 'fi-rr-money-bill-wave', // Đã đổi thành icon rút tiền đẹp hơn
         'history'      => 'fi-rr-time-past',
         'stats'        => 'fi-rr-chart-pie',
         // AI Tools icons

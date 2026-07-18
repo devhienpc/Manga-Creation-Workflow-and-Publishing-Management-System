@@ -501,6 +501,57 @@ $txTypesInfo = [
     border-radius: 50%;
     background: currentColor;
 }
+@keyframes slideUpFade {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* 1. Hiệu ứng xếp tầng khi tải trang */
+.page-header { animation: slideUpFade 0.5s ease-out forwards; }
+.wallet-grid-4 { opacity: 0; animation: slideUpFade 0.5s ease-out 0.15s forwards; }
+.wallet-grid-2 { opacity: 0; animation: slideUpFade 0.5s ease-out 0.3s forwards; }
+.card-history { opacity: 0; animation: slideUpFade 0.5s ease-out 0.45s forwards; }
+
+/* 2. Hiệu ứng 3D nhẹ khi hover thẻ số dư */
+.overview-card {
+    transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), box-shadow 0.3s ease;
+    will-change: transform;
+}
+.overview-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25);
+}
+
+.overview-icon {
+    transition: transform 0.3s ease-in-out, background-color 0.3s ease;
+}
+.overview-card:hover .overview-icon {
+    transform: scale(1.1) rotate(5deg);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+/* 3. Hiệu ứng nổi bật dòng lịch sử giao dịch */
+.tx-table tbody tr {
+    transition: background-color 0.2s ease, transform 0.2s ease;
+}
+.tx-table tbody tr:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+    transform: scale(1.01) translateX(2px);
+}
+
+/* 4. Hiệu ứng phát sáng cho nút hành động */
+.btn-act {
+    transition: all 0.2s ease-in-out;
+}
+.btn-act:hover {
+    filter: brightness(1.15);
+}
+.btn-act-primary:hover {
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); /* Phát sáng viền xanh ngọc */
+}
+.btn-act-secondary:hover {
+    box-shadow: 0 4px 12px rgba(255, 255, 255, 0.1);
+}
 </style>
 
 <div class="wallet-container">
@@ -570,7 +621,7 @@ $txTypesInfo = [
                 <p class="c-sub">Đã rút thành công</p>
             </div>
             <div class="overview-icon">
-                <i class="fi fi-sr-arrow-up-circle"></i>
+                <i class="fi fi-sr-money-bill-wave"></i>
             </div>
         </div>
     </div>
