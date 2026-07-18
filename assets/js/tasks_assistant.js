@@ -171,6 +171,7 @@ function renderTasksList() {
                 seriesHTML += `
                     <div class="task-row-info">
                         <span class="task-type-label">${getTypeLabel(t.task_type)}</span>
+                        <span class="task-price-badge" style="font-weight: 700; color: #fbbf24; margin-left: 8px; font-size: 0.8rem;">${new Intl.NumberFormat('vi-VN').format(t.price)} ₫</span>
                         ${getStatusBadge(t.status)}
                         ${t.due_date ? `<span class="deadline-tag" data-deadline="${t.due_date}"></span>` : ''}
                     </div>

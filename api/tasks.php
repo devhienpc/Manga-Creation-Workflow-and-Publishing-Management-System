@@ -268,6 +268,7 @@ if ($action === 'create_task') {
     $description = trim($body['description'] ?? '');
     $regionDataRaw = trim($body['region_data'] ?? '');
     $dueDate = trim($body['due_date'] ?? '');
+    $price = isset($body['price']) ? (float)$body['price'] : 0.00;
 
     if ($pageId <= 0) {
         jsonResponse(false, 'page_id không hợp lệ.', [], 422);
@@ -277,6 +278,9 @@ if ($action === 'create_task') {
     }
     if (!in_array($taskType, ['background', 'shading', 'effects', 'lettering', 'cleanup'], true)) {
         jsonResponse(false, 'Loại task không hợp lệ.', [], 422);
+    }
+    if ($price < 0) {
+        jsonResponse(false, 'Đơn giá nhiệm vụ không được nhỏ hơn 0.', [], 422);
     }
 
     // Validate page_id belongs to this mangaka
@@ -338,13 +342,13 @@ if ($action === 'create_task') {
 
         $stmt = $db->prepare("
             INSERT INTO tasks 
-                (page_id, assigned_to, assigned_by, task_type, description, region_data, status, due_date, version)
-            VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, 1)
+                (page_id, assigned_to, assigned_by, task_type, description, region_data, status, due_date, version, price)
+            VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, 1, ?)
         ");
         $stmt->execute([
             $pageId, $assignedTo, $currentUser['id'], $taskType,
             $description !== '' ? $description : null,
-            $normalizedRegion, $dueDate
+            $normalizedRegion, $dueDate, $price
         ]);
         $taskId = (int)$db->lastInsertId();
 

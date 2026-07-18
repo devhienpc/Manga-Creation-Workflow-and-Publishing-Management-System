@@ -112,6 +112,17 @@ function initSelectors() {
             hideMainContent();
         }
     });
+
+    const taskTypeSelect = document.getElementById('taskType');
+    if (taskTypeSelect) {
+        taskTypeSelect.addEventListener('change', () => {
+            const type = taskTypeSelect.value;
+            const priceInput = document.getElementById('taskPrice');
+            if (priceInput && typeof DEFAULT_TASK_RATES !== 'undefined' && DEFAULT_TASK_RATES[type] !== undefined) {
+                priceInput.value = DEFAULT_TASK_RATES[type];
+            }
+        });
+    }
 }
 
 function hideMainContent() {
@@ -381,6 +392,11 @@ function showTaskForm(x, y, w, h) {
     document.getElementById('taskDueDate').value = '';
     document.getElementById('taskType').value = 'background';
     
+    const priceInput = document.getElementById('taskPrice');
+    if (priceInput && typeof DEFAULT_TASK_RATES !== 'undefined') {
+        priceInput.value = DEFAULT_TASK_RATES['background'] || 100000;
+    }
+    
     // Scroll form into view
     formCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
@@ -406,6 +422,8 @@ async function submitCreateTask(event) {
     const w = parseFloat(document.getElementById('coordW').value);
     const h = parseFloat(document.getElementById('coordH').value);
     
+    const price = parseFloat(document.getElementById('taskPrice').value) || 0;
+    
     if (assigned_to <= 0) {
         showToast('Vui lòng chọn trợ lý vẽ.', 'error');
         return;
@@ -423,7 +441,8 @@ async function submitCreateTask(event) {
         task_type,
         description,
         due_date,
-        region_data
+        region_data,
+        price
     };
     
     try {
@@ -527,6 +546,7 @@ function renderTasksList() {
             </div>
             <div class="task-card-meta">
                 <span><i class="fi fi-rr-user"></i> <strong>${t.assistant_name}</strong></span>
+                <span><i class="fi fi-rr-usd-circle"></i> <strong>${new Intl.NumberFormat('vi-VN').format(t.price)} ₫</strong></span>
                 <span><i class="fi fi-rr-calendar"></i> Hạn: ${t.due_date ? t.due_date : 'Không giới hạn'}</span>
             </div>
             <p class="task-card-desc"><i class="fi fi-rr-document" style="opacity: 0.7;"></i> ${t.description}</p>
