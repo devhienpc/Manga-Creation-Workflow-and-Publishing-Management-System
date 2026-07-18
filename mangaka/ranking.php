@@ -195,21 +195,21 @@ $jsHistoryMap = json_encode($seriesHistoryMap);
             <p class="text-xs text-muted font-bold" style="text-transform:uppercase; letter-spacing:0.5px;">Tổng tác phẩm đang phát hành</p>
             <div class="stat-number" style="font-size: 2.2rem; font-weight:800; margin-top:5px;"><?= $totalPublishing ?></div>
         </div>
-        <div class="stat-icon" style="color:var(--red); font-size:1.8rem; opacity:0.8;">📚</div>
+        <div class="stat-icon" style="color:var(--red); font-size:1.8rem; opacity:0.8; display:flex; align-items:center; justify-content:center;"><i class="fi fi-sr-book-alt"></i></div>
     </div>
     <div class="card stat-card" style="padding: 20px;">
         <div>
             <p class="text-xs text-muted font-bold" style="text-transform:uppercase; letter-spacing:0.5px;">Truyện của bạn đang xuất bản</p>
             <div class="stat-number" style="font-size: 2.2rem; font-weight:800; margin-top:5px;"><?= count($mySeries) ?></div>
         </div>
-        <div class="stat-icon" style="color:#fbbf24; font-size:1.8rem; opacity:0.8;">🖊️</div>
+        <div class="stat-icon" style="color:#fbbf24; font-size:1.8rem; opacity:0.8; display:flex; align-items:center; justify-content:center;"><i class="fi fi-sr-edit"></i></div>
     </div>
     <div class="card stat-card" style="padding: 20px;">
         <div>
             <p class="text-xs text-muted font-bold" style="text-transform:uppercase; letter-spacing:0.5px;">Kỳ bình chọn mới nhất</p>
             <div class="stat-number" style="font-size: 1.8rem; font-weight:800; margin-top:10px; color:#34d399;"><?= htmlspecialchars($latestPeriod ?? 'Chưa có dữ liệu') ?></div>
         </div>
-        <div class="stat-icon" style="color:#34d399; font-size:1.8rem; opacity:0.8;">⏱️</div>
+        <div class="stat-icon" style="color:#34d399; font-size:1.8rem; opacity:0.8; display:flex; align-items:center; justify-content:center;"><i class="fi fi-sr-clock"></i></div>
     </div>
 </div>
 

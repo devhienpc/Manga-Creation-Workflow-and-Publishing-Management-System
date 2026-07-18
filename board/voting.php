@@ -151,15 +151,16 @@ $rejectedCount = (int) ($stats['cnt_rejected'] ?? 0);
     }
 
     .sub-card:hover {
-        border-color: rgba(99, 102, 241, 0.5);
-        background: rgba(99, 102, 241, 0.05);
-        transform: translateX(3px);
+        border-color: var(--red) !important;
+        background: var(--red-subtle) !important;
+        transform: translateX(4px);
+        box-shadow: 0 4px 15px var(--red-glow);
     }
 
     .sub-card.active {
-        border-color: var(--accent-primary);
-        background: rgba(99, 102, 241, 0.1);
-        box-shadow: 0 0 0 1px var(--accent-primary);
+        border-color: var(--red) !important;
+        background: var(--red-subtle) !important;
+        box-shadow: 0 0 0 2px var(--red) !important;
     }
 
     .sub-card-title {
@@ -302,12 +303,12 @@ $rejectedCount = (int) ($stats['cnt_rejected'] ?? 0);
     }
 
     .page-thumb:hover {
-        border-color: rgba(99, 102, 241, .5);
+        border-color: var(--red) !important;
     }
 
     .page-thumb.active {
-        border-color: var(--accent-primary);
-        box-shadow: 0 0 8px rgba(99, 102, 241, 0.4);
+        border-color: var(--red) !important;
+        box-shadow: 0 0 10px var(--red-glow) !important;
     }
 
     .page-thumb .pnum {
@@ -372,9 +373,9 @@ $rejectedCount = (int) ($stats['cnt_rejected'] ?? 0);
         border-radius: 20px;
         font-size: 0.7rem;
         font-weight: 600;
-        background: rgba(99, 102, 241, 0.15);
-        color: #a5b4fc;
-        border: 1px solid rgba(99, 102, 241, 0.25);
+        background: var(--red-subtle) !important;
+        color: var(--text) !important;
+        border: 1px solid var(--border) !important;
         margin: 2px;
     }
 
@@ -478,14 +479,15 @@ $rejectedCount = (int) ($stats['cnt_rejected'] ?? 0);
     }
 
     .schedule-opt:hover {
-        border-color: rgba(99, 102, 241, 0.4);
-        color: var(--text-primary);
+        border-color: var(--red) !important;
+        color: var(--text) !important;
     }
 
     .schedule-opt.selected {
-        border-color: var(--accent-primary);
-        background: rgba(99, 102, 241, 0.12);
-        color: #a5b4fc;
+        border-color: var(--red) !important;
+        background: var(--red-subtle) !important;
+        color: var(--text) !important;
+        box-shadow: 0 0 10px var(--red-glow) !important;
     }
 
     .schedule-opt .icon {
@@ -577,12 +579,13 @@ $rejectedCount = (int) ($stats['cnt_rejected'] ?? 0);
     }
 
     .section-heading .badge-count {
-        background: rgba(99, 102, 241, 0.2);
-        color: #a5b4fc;
+        background: var(--red-subtle) !important;
+        color: var(--text) !important;
         border-radius: 20px;
         padding: 2px 9px;
         font-size: 0.72rem;
         font-weight: 700;
+        border: 1px solid var(--border);
     }
 
     /* Tabs */
@@ -653,29 +656,29 @@ $rejectedCount = (int) ($stats['cnt_rejected'] ?? 0);
 <div class="stats-row">
     <div class="stat-mini pending">
         <div class="num"><?= $pendingCount ?></div>
-        <div class="lbl">⏳ Chờ xét</div>
+        <div class="lbl"><i class="fi fi-rr-clock" style="margin-right:4px;"></i> Chờ xét</div>
     </div>
     <div class="stat-mini approved">
         <div class="num"><?= $approvedCount ?></div>
-        <div class="lbl">✅ Đã duyệt</div>
+        <div class="lbl"><i class="fi fi-rr-check-circle" style="margin-right:4px;"></i> Đã duyệt</div>
     </div>
     <div class="stat-mini rejected">
         <div class="num"><?= $rejectedCount ?></div>
-        <div class="lbl">❌ Từ chối</div>
+        <div class="lbl"><i class="fi fi-rr-cross-circle" style="margin-right:4px;"></i> Từ chối</div>
     </div>
 </div>
 
 <!-- Tab Navigation -->
 <div class="tab-row">
     <button class="tab-btn active" id="tabVoting" onclick="switchTab('voting')">
-        🗳️ Bỏ phiếu
+        <i class="fi fi-rr-checkbox" style="margin-right:4px;"></i> Bỏ phiếu
         <?php if ($pendingCount > 0): ?>
             <span
                 style="background:#f59e0b; color:#0b0b16; border-radius:10px; padding:1px 6px; font-size:.65rem; font-weight:800; margin-left:4px;"><?= $pendingCount ?></span>
         <?php endif; ?>
     </button>
     <button class="tab-btn" id="tabHistory" onclick="switchTab('history')">
-        📋 Lịch sử bỏ phiếu <span
+        <i class="fi fi-rr-clipboard" style="margin-right:4px;"></i> Lịch sử bỏ phiếu <span
             style="background:rgba(255,255,255,0.1); border-radius:10px; padding:1px 6px; font-size:.65rem; font-weight:700; margin-left:4px;"><?= count($historyList) ?></span>
     </button>
 </div>
@@ -693,7 +696,7 @@ $rejectedCount = (int) ($stats['cnt_rejected'] ?? 0);
                 </div>
                 <?php if (empty($pendingSubmissions)): ?>
                     <div style="text-align:center; padding:40px 10px; color:var(--text-muted);">
-                        <div style="font-size:2.5rem; margin-bottom:12px; opacity:0.5;">📭</div>
+                        <div style="font-size:2.5rem; margin-bottom:12px; opacity:0.5;"><i class="fi fi-rr-inbox"></i></div>
                         <p style="font-size:0.85rem;">Không có đệ trình nào đang chờ xét duyệt.</p>
                     </div>
                 <?php else: ?>
@@ -708,11 +711,11 @@ $rejectedCount = (int) ($stats['cnt_rejected'] ?? 0);
                                     Chương <?= $sub['chapter_number'] ?>: <?= htmlspecialchars($sub['chapter_title']) ?>
                                 </div>
                                 <div class="sub-card-meta">
-                                    <span>🎨 <?= htmlspecialchars($sub['mangaka_name']) ?></span>
-                                    <span>📝 <?= htmlspecialchars($sub['editor_name']) ?></span>
+                                    <span><i class="fi fi-rr-palette" style="margin-right:4px;"></i> <?= htmlspecialchars($sub['mangaka_name']) ?></span>
+                                    <span><i class="fi fi-rr-edit" style="margin-right:4px;"></i> <?= htmlspecialchars($sub['editor_name']) ?></span>
                                 </div>
                                 <div class="sub-card-meta">
-                                    <span>🕒 <?= date('d/m/Y', strtotime($sub['submitted_at'])) ?></span>
+                                    <span><i class="fi fi-rr-clock" style="margin-right:4px;"></i> <?= date('d/m/Y', strtotime($sub['submitted_at'])) ?></span>
                                     <span
                                         style="background:rgba(245,158,11,0.15); color:#fcd34d; border-radius:4px; padding:1px 6px; font-size:.65rem; font-weight:700;">PENDING</span>
                                 </div>
@@ -743,7 +746,7 @@ $rejectedCount = (int) ($stats['cnt_rejected'] ?? 0);
                                 <img src="<?= htmlspecialchars($coverUrl) ?>"
                                     alt="cover">
                             <?php else: ?>
-                                📚
+                                <i class="fi fi-rr-book" style="font-size:2rem; opacity:0.3;"></i>
                             <?php endif; ?>
                         </div>
                         <div>
@@ -782,7 +785,7 @@ $rejectedCount = (int) ($stats['cnt_rejected'] ?? 0);
                             <?php if (!empty($selectedSub['board_notes'])): ?>
                                 <div
                                     style="margin-top:12px; padding:10px 14px; background:rgba(99,102,241,0.08); border:1px solid rgba(99,102,241,0.2); border-radius:8px; font-size:0.82rem; color:#c7d2fe;">
-                                    <strong style="color:#a5b4fc;">💬 Nhận xét của Biên tập viên:</strong><br>
+                                    <strong style="color:#a5b4fc;"><i class="fi fi-rr-comment" style="margin-right:4px;"></i> Nhận xét của Biên tập viên:</strong><br>
                                     <?= htmlspecialchars($selectedSub['board_notes']) ?>
                                 </div>
                             <?php endif; ?>
@@ -821,15 +824,15 @@ $rejectedCount = (int) ($stats['cnt_rejected'] ?? 0);
                         ?>
                         <div style="margin-left:auto; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
                             <?php if (!empty($boardPageUrls)): ?>
-                                <button onclick="openWebtoonReader('<?= $encodedBoardUrls ?>', '<?= $boardTitleStr ?>', '<?= $boardZipStr ?>')" class="btn btn-primary btn-sm" style="font-size:0.75rem; padding:5px 12px; background:linear-gradient(135deg, #6366f1, #8b5cf6); border:none; box-shadow: 0 2px 8px rgba(99,102,241,0.3);">
-                                    📖 Xem Webtoon / Toàn màn hình
+                                <button onclick="openWebtoonReader('<?= $encodedBoardUrls ?>', '<?= $boardTitleStr ?>', '<?= $boardZipStr ?>')" class="btn btn-primary btn-sm" style="font-size:0.75rem; padding:5px 12px; background:linear-gradient(135deg, #6366f1, #8b5cf6); border:none; box-shadow: 0 2px 8px rgba(99,102,241,0.3); display:inline-flex; align-items:center; gap:6px;">
+                                    <i class="fi fi-rr-book-open"></i> Xem Webtoon / Toàn màn hình
                                 </button>
-                                <button onclick="downloadZip('<?= $encodedBoardUrls ?>', '<?= $boardZipStr ?>')" class="btn btn-secondary btn-sm" style="font-size:0.75rem; padding:5px 12px;">
-                                    📥 Tải về (ZIP)
+                                <button onclick="downloadZip('<?= $encodedBoardUrls ?>', '<?= $boardZipStr ?>')" class="btn btn-secondary btn-sm" style="font-size:0.75rem; padding:5px 12px; display:inline-flex; align-items:center; gap:6px;">
+                                    <i class="fi fi-rr-download"></i> Tải về (ZIP)
                                 </button>
                             <?php else: ?>
-                                <a href="<?= htmlspecialchars(manuscriptUrl($selectedSub['file_path'])) ?>" target="_blank" download class="btn btn-secondary btn-sm" style="font-size:0.75rem; padding:5px 12px;">
-                                    📥 Tải về
+                                <a href="<?= htmlspecialchars(manuscriptUrl($selectedSub['file_path'])) ?>" target="_blank" download class="btn btn-secondary btn-sm" style="font-size:0.75rem; padding:5px 12px; display:inline-flex; align-items:center; gap:6px;">
+                                    <i class="fi fi-rr-download"></i> Tải về
                                 </a>
                             <?php endif; ?>
                         </div>
@@ -848,7 +851,7 @@ $rejectedCount = (int) ($stats['cnt_rejected'] ?? 0);
                                 title="PDF Bản thảo <?= htmlspecialchars($selectedSub['series_title']) ?>">
                                 <p style="padding:20px; color:var(--text-muted);">
                                     Trình duyệt không hỗ trợ xem PDF.
-                                    <a href="<?= $fileUrl ?>" target="_blank" style="color:var(--accent-primary);">Mở file trực
+                                    <a href="<?= $fileUrl ?>" target="_blank" style="color:var(--red);">Mở file trực
                                         tiếp</a>
                                 </p>
                             </iframe>
@@ -870,7 +873,7 @@ $rejectedCount = (int) ($stats['cnt_rejected'] ?? 0);
                                         <?php else: ?>
                                             <div
                                                 style="height:100%; display:flex; align-items:center; justify-content:center; font-size:1.2rem; opacity:0.3;">
-                                                📄</div>
+                                                <i class="fi fi-rr-document"></i></div>
                                         <?php endif; ?>
                                         <div class="pnum">T<?= $pg['page_number'] ?></div>
                                     </div>
@@ -883,7 +886,7 @@ $rejectedCount = (int) ($stats['cnt_rejected'] ?? 0);
                                         alt="Trang <?= $pages[0]['page_number'] ?>">
                                 <?php else: ?>
                                     <div style="color:var(--text-muted); text-align:center; padding:40px;">
-                                        <div style="font-size:3rem; opacity:0.3; margin-bottom:12px;">📄</div>
+                                        <div style="font-size:3rem; opacity:0.3; margin-bottom:12px;"><i class="fi fi-rr-document"></i></div>
                                         <p>Chương này chưa có ảnh trang nào được tải lên.</p>
                                     </div>
                                 <?php endif; ?>
@@ -892,7 +895,7 @@ $rejectedCount = (int) ($stats['cnt_rejected'] ?? 0);
                     <?php else: ?>
                         <div
                             style="padding:40px; text-align:center; background:var(--bg-input); border-radius:8px; border:1px dashed var(--border); color:var(--text-muted);">
-                            <div style="font-size:3rem; margin-bottom:12px; opacity:0.4;">📂</div>
+                            <div style="font-size:3rem; margin-bottom:12px; opacity:0.4;"><i class="fi fi-rr-folder"></i></div>
                             <p>Bản thảo chưa có file đính kèm hoặc ảnh trang để xem trước.</p>
                             <?php if ($filePath): ?>
                                 <a href="<?= $fileUrl ?>" target="_blank" class="btn btn-secondary"
@@ -949,14 +952,14 @@ $rejectedCount = (int) ($stats['cnt_rejected'] ?? 0);
                             Lịch xuất bản *
                         </label>
                         <div class="schedule-row">
-                            <div class="schedule-opt" id="optWeekly" onclick="selectSchedule('weekly')">
-                                <span class="icon">📅</span>
+                            <div class="schedule-opt" id="optWeekly" onclick="selectSchedule('weekly')" style="display:inline-flex; align-items:center; gap:8px;">
+                                <i class="fi fi-rr-calendar"></i>
                                 Hàng tuần
                                 <div style="font-size:0.7rem; color:var(--text-muted); margin-top:3px;">Mỗi tuần 1 chương
                                 </div>
                             </div>
-                            <div class="schedule-opt" id="optMonthly" onclick="selectSchedule('monthly')">
-                                <span class="icon">🗓️</span>
+                            <div class="schedule-opt" id="optMonthly" onclick="selectSchedule('monthly')" style="display:inline-flex; align-items:center; gap:8px;">
+                                <i class="fi fi-rr-calendar-lines"></i>
                                 Hàng tháng
                                 <div style="font-size:0.7rem; color:var(--text-muted); margin-top:3px;">Mỗi tháng 1 chương
                                 </div>
@@ -965,8 +968,8 @@ $rejectedCount = (int) ($stats['cnt_rejected'] ?? 0);
                         <input type="hidden" id="scheduleChoice" value="">
 
                         <div class="form-group" style="margin-bottom:16px;">
-                            <label class="form-label" for="publishDateInput">
-                                📅 Ngày bắt đầu xuất bản
+                            <label class="form-label" for="publishDateInput" style="display:inline-flex; align-items:center; gap:6px;">
+                                <i class="fi fi-rr-calendar"></i> Ngày bắt đầu xuất bản
                             </label>
                             <input type="date" id="publishDateInput" class="form-control" min="<?= date('Y-m-d') ?>"
                                 value="<?= date('Y-m-d', strtotime('+7 days')) ?>">
@@ -975,8 +978,8 @@ $rejectedCount = (int) ($stats['cnt_rejected'] ?? 0);
 
                     <!-- Notes -->
                     <div class="form-group" style="margin-bottom:20px;">
-                        <label class="form-label" for="boardNotesInput">
-                            💬 Ghi chú quyết định
+                        <label class="form-label" for="boardNotesInput" style="display:inline-flex; align-items:center; gap:6px;">
+                            <i class="fi fi-rr-comment"></i> Ghi chú quyết định
                             <span style="color:var(--text-muted); font-weight:400;">(tùy chọn)</span>
                         </label>
                         <textarea id="boardNotesInput" class="form-control" rows="4"
@@ -1062,7 +1065,7 @@ $rejectedCount = (int) ($stats['cnt_rejected'] ?? 0);
 
         <?php if (empty($historyList)): ?>
             <div style="padding:60px; text-align:center; color:var(--text-muted);">
-                <div style="font-size:3rem; opacity:0.3; margin-bottom:12px;">📋</div>
+                <div style="font-size:3rem; opacity:0.3; margin-bottom:12px;"><i class="fi fi-rr-clipboard"></i></div>
                 <p>Chưa có quyết định nào được ghi lại.</p>
             </div>
         <?php else: ?>
@@ -1114,17 +1117,15 @@ $rejectedCount = (int) ($stats['cnt_rejected'] ?? 0);
                                 </td>
                                 <td style="padding:13px 18px; text-align:center;">
                                     <?php if ($h['status'] === 'approved'): ?>
-                                        <span class="badge history-status-approve" style="font-size:.7rem; padding:3px 10px;">✅ Đã
-                                            duyệt</span>
+                                        <span class="badge history-status-approve" style="font-size:.7rem; padding:3px 10px;"><i class="fi fi-rr-check-circle" style="margin-right:4px;"></i> Đã duyệt</span>
                                     <?php else: ?>
-                                        <span class="badge history-status-reject" style="font-size:.7rem; padding:3px 10px;">❌ Từ
-                                            chối</span>
+                                        <span class="badge history-status-reject" style="font-size:.7rem; padding:3px 10px;"><i class="fi fi-rr-cross-circle" style="margin-right:4px;"></i> Từ chối</span>
                                     <?php endif; ?>
                                 </td>
                                 <td style="padding:13px 18px; font-size:0.8rem;">
                                     <?php if ($h['status'] === 'approved'): ?>
-                                        <span style="color:#6ee7b7;">
-                                            <?= $h['publish_schedule'] === 'weekly' ? '📅 Tuần' : '🗓️ Tháng' ?>
+                                        <span style="color:#6ee7b7; display:inline-flex; align-items:center; gap:4px;">
+                                            <?= $h['publish_schedule'] === 'weekly' ? '<i class="fi fi-rr-calendar"></i> Tuần' : '<i class="fi fi-rr-calendar-lines"></i> Tháng' ?>
                                         </span>
                                     <?php else: ?>
                                         <span style="color:var(--text-muted);">—</span>

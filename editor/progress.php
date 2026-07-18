@@ -105,77 +105,8 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
 }
 
 // ══════════════════════════════════════════════════
-// 2. XỬ LÝ POST TỔNG KẾT CHỐT LƯƠNG TRỢ LÝ
+// 2. TỔNG KẾT CHỐT LƯƠNG TRỢ LÝ ĐÃ ĐƯỢC CHUYỂN QUA AJAX API
 // ══════════════════════════════════════════════════
-$flashMsg = '';
-$flashType = 'success';
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'finalize_earnings') {
-    $assistantId = (int)($_POST['assistant_id'] ?? 0);
-    $month       = (int)($_POST['month'] ?? 0);
-    $year        = (int)($_POST['year'] ?? 0);
-    $ratePerPage = (float)($_POST['rate_per_page'] ?? 0);
-    
-    if ($assistantId <= 0 || $month < 1 || $month > 12 || $year < 2000 || $ratePerPage <= 0) {
-        $flashMsg = 'Vui lòng nhập đầy đủ thông tin chốt lương hợp lệ.';
-        $flashType = 'error';
-    } else {
-        // Đếm số trang đã hoàn thành ( approved ) của trợ lý này trong tháng/năm đó
-        $stmt = $db->prepare("
-            SELECT COUNT(DISTINCT page_id) 
-            FROM tasks 
-            WHERE assigned_to = ? 
-              AND status = 'approved' 
-              AND MONTH(created_at) = ? 
-              AND YEAR(created_at) = ?
-        ");
-        $stmt->execute([$assistantId, $month, $year]);
-        $approvedPagesCount = (int)$stmt->fetchColumn();
-        
-        $totalEarnings = $approvedPagesCount * $ratePerPage;
-        
-        try {
-            $db->beginTransaction();
-
-            // Lưu/Cập nhật thu nhập
-            $saveStmt = $db->prepare("
-                INSERT INTO earnings (assistant_id, month, year, approved_pages, rate_per_page, total)
-                VALUES (?, ?, ?, ?, ?, ?)
-                ON DUPLICATE KEY UPDATE 
-                    approved_pages = VALUES(approved_pages),
-                    rate_per_page = VALUES(rate_per_page),
-                    total = VALUES(total)
-            ");
-            $saveStmt->execute([
-                $assistantId,
-                $month,
-                $year,
-                $approvedPagesCount,
-                $ratePerPage,
-                $totalEarnings
-            ]);
-            
-            // Lấy tên Trợ lý gửi thông báo
-            $asStmt = $db->prepare("SELECT username FROM users WHERE id = ?");
-            $asStmt->execute([$assistantId]);
-            $assistantName = $asStmt->fetchColumn();
-            
-            // Gửi thông báo cho trợ lý nhận lương
-            $notifMsg = "Ban biên tập đã tổng kết & chốt thanh toán thu nhập Tháng $month/$year của bạn: " . number_format($totalEarnings) . " đ (cho $approvedPagesCount trang vẽ hoàn thành).";
-            $notif = $db->prepare("INSERT INTO notifications (user_id, type, message, link) VALUES (?, 'earnings', ?, 'assistant/earnings.php')");
-            $notif->execute([$assistantId, $notifMsg]);
-
-            $db->commit();
-
-            $flashMsg = "Đã hoàn tất chốt lương cho trợ lý <strong>" . htmlspecialchars($assistantName) . "</strong>: " . number_format($totalEarnings) . " đ ($approvedPagesCount trang * " . number_format($ratePerPage) . " đ/trang).";
-            $flashType = 'success';
-        } catch (\Throwable $e) {
-            $db->rollBack();
-            $flashMsg = 'Lỗi khi lưu bảng lương: ' . $e->getMessage();
-            $flashType = 'error';
-        }
-    }
-}
 
 // ══════════════════════════════════════════════════
 // 3. LOAD NỘI DUNG LAYOUT
@@ -239,7 +170,58 @@ if ($chapterId > 0) {
     }
 }
 
-// Tải danh sách trợ lý để dùng cho form chốt lương
+// Tải tham số tháng/năm lọc lương
+$salaryMonth = isset($_GET['salary_month']) ? (int)$_GET['salary_month'] : (int)date('n');
+$salaryYear  = isset($_GET['salary_year']) ? (int)$_GET['salary_year'] : (int)date('Y');
+
+// Lấy danh sách preview lương trợ lý cho tháng/năm được chọn
+$salaryPreview = [];
+try {
+    $previewQuery = $db->prepare("
+        SELECT 
+            u_as.id AS assistant_id,
+            u_as.username AS assistant_name,
+            u_as.avatar AS assistant_avatar,
+            u_ma.id AS mangaka_id,
+            u_ma.username AS mangaka_name,
+            COUNT(DISTINCT p.id) AS approved_pages,
+            COALESCE(MAX(sr.status), 'pending') AS salary_status,
+            COALESCE(MAX(sr.gross_amount), 0) AS paid_amount
+        FROM tasks t
+        JOIN pages p ON t.page_id = p.id
+        JOIN chapters c ON p.chapter_id = c.id
+        JOIN series s ON c.series_id = s.id
+        JOIN users u_as ON t.assigned_to = u_as.id
+        JOIN users u_ma ON s.mangaka_id = u_ma.id
+        LEFT JOIN salary_records sr ON sr.assistant_id = u_as.id 
+            AND sr.mangaka_id = u_ma.id 
+            AND sr.month = :sr_month 
+            AND sr.year = :sr_year
+        WHERE t.status = 'approved'
+          AND MONTH(COALESCE(t.approved_at, t.created_at)) = :w_month
+          AND YEAR(COALESCE(t.approved_at, t.created_at)) = :w_year
+        GROUP BY u_as.id, u_as.username, u_as.avatar, u_ma.id, u_ma.username
+        ORDER BY u_as.username ASC
+    ");
+    $previewQuery->execute([
+        ':sr_month' => $salaryMonth,
+        ':sr_year'  => $salaryYear,
+        ':w_month'  => $salaryMonth,
+        ':w_year'   => $salaryYear
+    ]);
+    $salaryPreview = $previewQuery->fetchAll();
+} catch (\Throwable $e) {
+    error_log("Lỗi truy vấn preview lương: " . $e->getMessage());
+}
+
+$defaultRate = 250000;
+try {
+    $st = $db->prepare("SELECT value_text FROM settings WHERE key_name = 'default_assistant_rate'");
+    $st->execute();
+    $val = $st->fetchColumn();
+    if ($val !== false) $defaultRate = (float)$val;
+} catch (\Throwable $e) {}
+
 $assistantsList = $db->query("SELECT id, username FROM users WHERE role = 'assistant' ORDER BY username ASC")->fetchAll();
 
 $pageStatusLabels = [
@@ -250,11 +232,11 @@ $pageStatusLabels = [
 ];
 
 $taskTypeNames = [
-    'background' => '🟢 Vẽ phông nền (Background)',
-    'shading'    => '🔵 Đổ bóng (Shading)',
-    'effects'    => '🟣 Hiệu ứng (Effects)',
-    'lettering'  => '🟡 Chữ/Thoại (Lettering)',
-    'cleanup'    => '🔴 Đi nét (Cleanup)',
+    'background' => '<i class="fi fi-rr-picture" style="color:#10b981; margin-right:6px;"></i> Vẽ phông nền (Background)',
+    'shading'    => '<i class="fi fi-rr-draw-square" style="color:#3b82f6; margin-right:6px;"></i> Đổ bóng (Shading)',
+    'effects'    => '<i class="fi fi-rr-magic-wand" style="color:#8b5cf6; margin-right:6px;"></i> Hiệu ứng (Effects)',
+    'lettering'  => '<i class="fi fi-rr-comment-alt" style="color:#f59e0b; margin-right:6px;"></i> Chữ/Thoại (Lettering)',
+    'cleanup'    => '<i class="fi fi-rr-paint-brush" style="color:#ef4444; margin-right:6px;"></i> Đi nét (Cleanup)',
 ];
 ?>
 
@@ -300,12 +282,12 @@ $taskTypeNames = [
         <?php if ($chapterId > 0): ?>
             <div style="margin-left:auto; display:flex; gap:8px;">
                 <!-- Manual refresh button -->
-                <button type="button" class="btn btn-secondary btn-sm" onclick="window.location.reload()">
-                    🔄 Làm mới
+                <button type="button" class="btn btn-secondary btn-sm" onclick="window.location.reload()" style="display:inline-flex; align-items:center; gap:6px;">
+                    <i class="fi fi-rr-refresh"></i> Làm mới
                 </button>
                 <!-- Export to CSV button -->
-                <a href="?chapter_id=<?= $chapterId ?>&export=csv" class="btn btn-secondary btn-sm" style="color:#fbbf24; border-color:rgba(251,191,36,.2);">
-                    📥 Xuất báo cáo CSV
+                <a href="?chapter_id=<?= $chapterId ?>&export=csv" class="btn btn-secondary btn-sm" style="color:#fbbf24; border-color:rgba(251,191,36,.2); display:inline-flex; align-items:center; gap:6px;">
+                    <i class="fi fi-rr-download"></i> Xuất báo cáo CSV
                 </a>
             </div>
         <?php endif; ?>
@@ -314,7 +296,7 @@ $taskTypeNames = [
 
 <?php if ($chapterId <= 0): ?>
     <div class="card" style="text-align:center; padding:60px 20px; color:var(--text-muted);">
-        <span style="font-size:3rem;">📊</span>
+        <i class="fi fi-rr-chart-histogram" style="font-size:3rem; color:var(--text-dim); display:block; margin-bottom:12px;"></i>
         <p style="margin-top:10px;">Vui lòng chọn bộ truyện và chương truyện ở trên để theo dõi tiến độ chi tiết.</p>
     </div>
 <?php else: ?>
@@ -421,73 +403,242 @@ $taskTypeNames = [
 <?php endif; ?>
 
 <!-- ══════════════════════════════════════════════════
-   PHẦN 3: FORM CHỐT LƯƠNG TRỢ LÝ CUỐI THÁNG (END OF MONTH)
+   PHẦN 3: TÍNH LƯƠNG THÁNG CHO TRỢ LÝ SYSTEM (MONTHLY PAYOUT)
    ══════════════════════════════════════════════════ -->
-<div class="card" style="padding: 24px; max-width: 720px;">
-    <p class="card-title" style="font-size:1.05rem; font-weight:700; color:#fbbf24; display:flex; align-items:center; gap:8px;">
-        💰 Chốt Lương Trợ Lý Cuối Tháng (End-of-Month Payout)
-    </p>
-    <p class="card-subtitle mb-16">Tính toán tổng kết số trang đã duyệt và ghi nhận bảng thu nhập chuyển khoản</p>
-    
-    <form method="POST" action="" style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
-        <input type="hidden" name="action" value="finalize_earnings">
-
-        <!-- Chọn trợ lý -->
-        <div class="form-group" style="margin-bottom:0;">
-            <label class="form-label">Trợ lý nhận lương *</label>
-            <select name="assistant_id" class="form-control" required>
-                <option value="">— Chọn trợ lý —</option>
-                <?php foreach ($assistantsList as $as): ?>
-                    <option value="<?= $as['id'] ?>"><?= htmlspecialchars($as['username']) ?></option>
-                <?php endforeach; ?>
-            </select>
+<div class="card" style="padding: 24px; margin-top: 24px; border: 1px solid var(--border);">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px; margin-bottom: 20px;">
+        <div>
+            <p class="card-title" style="font-size:1.1rem; font-weight:700; color:#fbbf24; display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+                <i class="fi fi-rr-usd-circle" style="color:#fbbf24; margin-right:8px;"></i> Tính Lương Trợ Lý (Salary Payout Engine)
+            </p>
+            <p class="card-subtitle" style="margin-bottom:0;">Tính lương thực tế dựa trên số trang đã duyệt (Approved) trong tháng.</p>
         </div>
-
-        <!-- Đơn giá/Trang -->
-        <div class="form-group" style="margin-bottom:0;">
-            <label class="form-label">Đơn giá chốt / trang (VND) *</label>
-            <input type="number" name="rate_per_page" class="form-control" placeholder="Ví dụ: 300000" min="1000" required>
-        </div>
-
-        <!-- Chọn Tháng -->
-        <div class="form-group" style="margin-bottom:0;">
-            <label class="form-label">Tháng chốt *</label>
-            <select name="month" class="form-control" required>
+        
+        <!-- Bộ lọc Tháng/Năm -->
+        <form method="GET" action="" style="display:flex; gap:10px; align-items:center;">
+            <!-- Giữ lại bộ lọc cũ của trang nếu có -->
+            <?php if ($seriesId > 0): ?><input type="hidden" name="series_id" value="<?= $seriesId ?>"><?php endif; ?>
+            <?php if ($chapterId > 0): ?><input type="hidden" name="chapter_id" value="<?= $chapterId ?>"><?php endif; ?>
+            
+            <select name="salary_month" class="form-control" style="width:130px; padding:6px 12px; font-size:0.85rem;" onchange="this.form.submit()">
                 <?php for ($m = 1; $m <= 12; $m++): ?>
-                    <option value="<?= $m ?>" <?= $m == date('n') ? 'selected' : '' ?>>Tháng <?= sprintf('%02d', $m) ?></option>
+                    <option value="<?= $m ?>" <?= $m === $salaryMonth ? 'selected' : '' ?>>Tháng <?= sprintf('%02d', $m) ?></option>
                 <?php endfor; ?>
             </select>
-        </div>
+            <input type="number" name="salary_year" class="form-control" style="width:100px; padding:6px 12px; font-size:0.85rem;" value="<?= $salaryYear ?>" min="2020" onchange="this.form.submit()">
+            <button type="submit" class="btn btn-primary" style="padding:6px 14px; font-size:0.8rem; font-weight:700; display:none;">Lọc</button>
+        </form>
+    </div>
 
-        <!-- Chọn Năm -->
-        <div class="form-group" style="margin-bottom:0;">
-            <label class="form-label">Năm chốt *</label>
-            <input type="number" name="year" class="form-control" value="<?= date('Y') ?>" min="2020" required>
-        </div>
+    <!-- Bảng preview chốt lương -->
+    <div style="overflow-x:auto; margin:0 -24px; border-top: 1px solid var(--border);">
+        <table class="table" style="width:100%; border-collapse:collapse;">
+            <thead>
+                <tr style="border-bottom:1px solid var(--border); font-size:0.75rem; text-transform:uppercase; color:var(--text-muted);">
+                    <th style="padding:12px 24px; text-align:left;">Trợ lý</th>
+                    <th style="padding:12px 24px; text-align:left;">Họa sĩ chi trả</th>
+                    <th style="padding:12px 24px; text-align:center;">Số trang đã duyệt</th>
+                    <th style="padding:12px 24px; text-align:right;">Đơn giá mặc định</th>
+                    <th style="padding:12px 24px; text-align:right;">Lương dự kiến</th>
+                    <th style="padding:12px 24px; text-align:center;">Trạng thái</th>
+                    <th style="padding:12px 24px; text-align:center;">Thao tác</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if (empty($salaryPreview)): ?>
+                    <tr>
+                        <td colspan="7" style="text-align:center; padding:48px; color:var(--text-muted);">
+                            <i class="fi fi-rr-envelope-open" style="font-size:2rem; display:block; margin-bottom:10px; opacity:0.35;"></i>
+                            Không có nhiệm vụ/trang vẽ nào được duyệt hoàn thành trong tháng <?= sprintf('%02d', $salaryMonth) ?>/<?= $salaryYear ?>.
+                        </td>
+                    </tr>
+                <?php else: ?>
+                    <?php 
+                    $hasUnpaid = false;
+                    foreach ($salaryPreview as $sp): 
+                        $grossAmt = $sp['approved_pages'] * $defaultRate;
+                        $isPaid = $sp['salary_status'] === 'paid';
+                        if (!$isPaid) $hasUnpaid = true;
+                    ?>
+                        <tr class="salary-row" 
+                            data-assistant="<?= $sp['assistant_id'] ?>" 
+                            data-mangaka="<?= $sp['mangaka_id'] ?>"
+                            data-status="<?= $sp['salary_status'] ?>"
+                            style="border-bottom:1px solid rgba(255,255,255,0.03); font-size:0.85rem;">
+                            
+                            <!-- Trợ lý -->
+                            <td style="padding:12px 24px;">
+                                <div style="display:flex; align-items:center; gap:10px;">
+                                    <img src="<?= $sp['assistant_avatar'] ? avatarImageUrl($sp['assistant_avatar']) : (BASE_URL . 'assets/images/default-avatar.png') ?>" 
+                                         style="width:28px; height:28px; border-radius:50%; object-fit:cover; background:var(--bg-input);">
+                                    <span style="font-weight:600; color:#fff;"><?= htmlspecialchars($sp['assistant_name']) ?></span>
+                                </div>
+                            </td>
+                            
+                            <!-- Mangaka -->
+                            <td style="padding:12px 24px; color:var(--text-muted);">
+                                <?= htmlspecialchars($sp['mangaka_name']) ?>
+                            </td>
+                            
+                            <!-- Trang đã duyệt -->
+                            <td style="padding:12px 24px; text-align:center; font-weight:700; color:#fff;">
+                                <?= $sp['approved_pages'] ?> trang
+                            </td>
+                            
+                            <!-- Đơn giá -->
+                            <td style="padding:12px 24px; text-align:right; font-family:'SF Mono',monospace; color:var(--text-muted);">
+                                <?= format_money($defaultRate) ?> ₫
+                            </td>
+                            
+                            <!-- Lương dự kiến -->
+                            <td style="padding:12px 24px; text-align:right; font-family:'SF Mono',monospace; font-weight:700; color:#10b981;">
+                                <?= format_money($grossAmt) ?> ₫
+                            </td>
+                            
+                            <!-- Trạng thái -->
+                            <td style="padding:12px 24px; text-align:center;">
+                                <?php if ($isPaid): ?>
+                                    <span style="background:rgba(16,185,129,0.12); color:#10b981; font-size:0.72rem; font-weight:800; padding:2px 8px; border-radius:4px;">ĐÃ THANH TOÁN</span>
+                                <?php elseif ($sp['salary_status'] === 'insufficient_funds'): ?>
+                                    <span style="background:rgba(239,68,68,0.12); color:#ef4444; font-size:0.72rem; font-weight:800; padding:2px 8px; border-radius:4px;">MANGAKA THIẾU TIỀN</span>
+                                <?php else: ?>
+                                    <span style="background:rgba(245,158,11,0.12); color:#f59e0b; font-size:0.72rem; font-weight:800; padding:2px 8px; border-radius:4px;">CHƯA THANH TOÁN</span>
+                                <?php endif; ?>
+                            </td>
+                            
+                            <!-- Thao tác -->
+                            <td style="padding:12px 24px; text-align:center;">
+                                <?php if ($isPaid): ?>
+                                    <button class="btn btn-secondary" style="padding:4px 8px; font-size:0.75rem; opacity:0.5;" disabled>Đã trả</button>
+                                <?php else: ?>
+                                    <button class="btn btn-primary" 
+                                            style="padding:4px 10px; font-size:0.75rem; font-weight:700; background:#fbbf24; border-color:#fbbf24; color:#1a1a2e;"
+                                            onclick="paySalary(<?= $sp['assistant_id'] ?>, <?= $sp['mangaka_id'] ?>, <?= $defaultRate ?>, this)">
+                                        Tính lương
+                                    </button>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
 
-        <button type="submit" class="btn btn-primary" style="grid-column: span 2; margin-top:10px;">
-            🏦 Tổng Kết & Chốt Lương
-        </button>
-    </form>
+    <?php if (!empty($salaryPreview) && $hasUnpaid): ?>
+        <div style="margin-top:20px; display:flex; justify-content:flex-end;">
+            <button id="btnPayAll" class="btn btn-primary" style="background:#10b981; border-color:#10b981; font-weight:700; display:inline-flex; align-items:center; gap:8px;" onclick="payAllSalaries()">
+                <i class="fi fi-rr-bank"></i> Tính lương cho tất cả trợ lý
+            </button>
+        </div>
+    <?php endif; ?>
 </div>
 
-<!-- JS tự động refresh mỗi 60 giây -->
+<!-- Toast chốt lương và Script xử lý -->
+<div id="salaryToast" style="position: fixed; top: 24px; right: 24px; z-index: 10000; padding: 14px 24px; border-radius: 8px; font-size: .85rem; font-weight: 700; color: #fff; opacity: 0; transform: translateY(-20px); transition: all .35s ease; pointer-events: none; box-shadow: 0 10px 30px rgba(0,0,0,0.5);"></div>
+
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    let timeLeft = 60;
-    const timerEl = document.getElementById('refreshTimer');
+function showSalaryToast(msg, type = 'success') {
+    const t = document.getElementById('salaryToast');
+    t.textContent = msg;
+    t.style.background = type === 'success' ? '#10b981' : (type === 'error' ? '#ef4444' : '#f59e0b');
+    t.style.opacity = '1';
+    t.style.transform = 'translateY(0)';
+    t.style.pointerEvents = 'auto';
+    setTimeout(() => {
+        t.style.opacity = '0';
+        t.style.transform = 'translateY(-20px)';
+        t.style.pointerEvents = 'none';
+    }, 4500);
+}
+
+async function paySalary(assistantId, mangakaId, rate, btn) {
+    if (!confirm('Xác nhận tính toán và chuyển khoản thanh toán lương cho trợ lý này từ ví họa sĩ?')) return;
     
-    if (timerEl) {
-        const interval = setInterval(() => {
-            timeLeft--;
-            timerEl.textContent = `Tự động làm mới trong: ${timeLeft}s`;
-            if (timeLeft <= 0) {
-                clearInterval(interval);
-                window.location.reload();
-            }
-        }, 1000);
+    btn.disabled = true;
+    const oldText = btn.textContent;
+    btn.textContent = '⏱...';
+    
+    try {
+        const res = await fetch(BASE_URL + 'api/finance/salary.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+                action: 'calculate',
+                assistant_id: assistantId,
+                mangaka_id: mangakaId,
+                month: <?= $salaryMonth ?>,
+                year: <?= $salaryYear ?>,
+                rate_per_page: rate
+            })
+        });
+        const json = await res.json();
+        
+        if (json.success) {
+            showSalaryToast(json.message, 'success');
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showSalaryToast(json.message || 'Thanh toán thất bại', 'error');
+            btn.disabled = false;
+            btn.textContent = oldText;
+        }
+    } catch (e) {
+        showSalaryToast('Lỗi kết nối máy chủ', 'error');
+        btn.disabled = false;
+        btn.textContent = oldText;
     }
-});
+}
+
+async function payAllSalaries() {
+    const rows = document.querySelectorAll('.salary-row[data-status="pending"], .salary-row[data-status="insufficient_funds"]');
+    if (rows.length === 0) {
+        showSalaryToast('Không có trợ lý nào cần thanh toán.', 'warning');
+        return;
+    }
+    
+    if (!confirm('Xác nhận chốt chuyển khoản lương cho TẤT CẢ trợ lý trong danh sách có nhiệm vụ chưa thanh toán?')) return;
+    
+    const btn = document.getElementById('btnPayAll');
+    btn.disabled = true;
+    btn.textContent = 'Đang thanh toán tất cả...';
+    
+    // Gom nhóm các mangaka_id duy nhất
+    const mangakaIds = new Set();
+    rows.forEach(r => {
+        mangakaIds.add(r.dataset.mangaka);
+    });
+    
+    let paidCount = 0;
+    let failedCount = 0;
+    
+    for (const mId of mangakaIds) {
+        try {
+            const res = await fetch(BASE_URL + 'api/finance/salary.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({
+                    action: 'calculate_all',
+                    mangaka_id: mId,
+                    month: <?= $salaryMonth ?>,
+                    year: <?= $salaryYear ?>,
+                    rate_per_page: <?= $defaultRate ?>
+                })
+            });
+            const json = await res.json();
+            if (json.success) {
+                paidCount += json.paid;
+                failedCount += json.failed;
+            } else {
+                failedCount++;
+            }
+        } catch (e) {
+            failedCount++;
+        }
+    }
+    
+    showSalaryToast(`Thanh toán hoàn tất! Đã trả lương cho ${paidCount} trợ lý, thất bại ${failedCount}.`, paidCount > 0 ? 'success' : 'error');
+    setTimeout(() => location.reload(), 2000);
+}
 </script>
 
 <?php

@@ -110,11 +110,92 @@ if ($action === 'submit_votes') {
         foreach ($votesData as $rank => $v) {
             $seriesId   = (int)($v['series_id']   ?? 0);
             $readerVotes = (int)($v['reader_votes'] ?? 0);
+            $revenue    = (float)($v['revenue']      ?? 0);
             $rankPos    = $rank + 1;
 
             if ($seriesId <= 0) continue;
 
             $insertStmt->execute([$seriesId, $votePeriod, $readerVotes, $rankPos, $currentUser['id']]);
+
+            // XỬ LÝ DOANH THU & PHÍ PLATFORM (NẾU CÓ NHẬP DOANH THU)
+            if ($revenue > 0) {
+                // Đọc phần trăm phí platform
+                $feePercent = 30; // Mặc định 30%
+                try {
+                    $stFee = $db->prepare("SELECT setting_value FROM finance_settings WHERE setting_key = 'platform_fee_percent'");
+                    $stFee->execute();
+                    $valFee = $stFee->fetchColumn();
+                    if ($valFee !== false) {
+                        $feePercent = (float)$valFee;
+                    }
+                } catch (\Throwable $e) {}
+
+                $platform_fee = round($revenue * $feePercent / 100);
+                $mangaka_earn = $revenue - $platform_fee;
+
+                // Lấy thông tin mangaka_id của series
+                $sStmt = $db->prepare("SELECT mangaka_id, title FROM series WHERE id = ? LIMIT 1");
+                $sStmt->execute([$seriesId]);
+                $sInfo = $sStmt->fetch();
+
+                if ($sInfo) {
+                    $mangaka_id  = (int)$sInfo['mangaka_id'];
+                    $seriesTitle = $sInfo['title'];
+
+                    // 1. Cộng tiền cho Mangaka
+                    $db->prepare("INSERT IGNORE INTO wallets (user_id) VALUES (?)")->execute([$mangaka_id]);
+                    // Khóa dòng ví mangaka
+                    $db->prepare("SELECT id, balance FROM wallets WHERE user_id = ? FOR UPDATE")->execute([$mangaka_id]);
+                    $mWallet = get_wallet($mangaka_id);
+
+                    $mBalBefore = (float)$mWallet['balance'];
+                    $mBalAfter  = $mBalBefore + $mangaka_earn;
+
+                    $db->prepare("UPDATE wallets SET balance = balance + ?, total_earned = total_earned + ? WHERE user_id = ?")
+                       ->execute([$mangaka_earn, $mangaka_earn, $mangaka_id]);
+
+                    $db->prepare("
+                        INSERT INTO transactions (wallet_id, type, amount, balance_before, balance_after, description, reference_type, status)
+                        VALUES (?, 'earn', ?, ?, ?, ?, 'chapter', 'completed')
+                    ")->execute([
+                        $mWallet['id'], $mangaka_earn, $mBalBefore, $mBalAfter,
+                        "Doanh thu truyện \"{$seriesTitle}\" kỳ {$votePeriod}"
+                    ]);
+
+                    // 2. Thu phí platform chuyển cho ban biên tập/admin
+                    $board_user_id = null;
+                    // Lấy user có role board đầu tiên
+                    $boardUserQuery = $db->query("SELECT id FROM users WHERE role = 'board' LIMIT 1");
+                    $board_user_id = $boardUserQuery->fetchColumn();
+
+                    if (!$board_user_id) {
+                        // Dự phòng sang admin
+                        $adminUserQuery = $db->query("SELECT id FROM users WHERE role = 'admin' LIMIT 1");
+                        $board_user_id = $adminUserQuery->fetchColumn();
+                    }
+
+                    if ($board_user_id) {
+                        $db->prepare("INSERT IGNORE INTO wallets (user_id) VALUES (?)")->execute([$board_user_id]);
+                        // Khóa dòng ví admin/board
+                        $db->prepare("SELECT id, balance FROM wallets WHERE user_id = ? FOR UPDATE")->execute([$board_user_id]);
+                        $bWallet = get_wallet($board_user_id);
+
+                        $bBalBefore = (float)$bWallet['balance'];
+                        $bBalAfter  = $bBalBefore + $platform_fee;
+
+                        $db->prepare("UPDATE wallets SET balance = balance + ? WHERE user_id = ?")
+                           ->execute([$platform_fee, $board_user_id]);
+
+                        $db->prepare("
+                            INSERT INTO transactions (wallet_id, type, amount, balance_before, balance_after, description, reference_type, status)
+                            VALUES (?, 'platform_fee', ?, ?, ?, ?, 'chapter', 'completed')
+                        ")->execute([
+                            $bWallet['id'], $platform_fee, $bBalBefore, $bBalAfter,
+                            "Phí platform truyện \"{$seriesTitle}\" ({$feePercent}%) kỳ {$votePeriod}"
+                        ]);
+                    }
+                }
+            }
 
             // Kiểm tra tụt hạng nguy hiểm
             $prevRank = $prevRanks[$seriesId] ?? null;
@@ -123,14 +204,16 @@ if ($action === 'submit_votes') {
             $bigDrop = ($prevRank !== null) && (($rankPos - $prevRank) >= 2);
 
             if ($isDanger || $bigDrop) {
-                // Lấy mangaka_id của series
-                $sStmt = $db->prepare(
-                    "SELECT s.mangaka_id, s.title, u.username AS mangaka_name
-                     FROM series s JOIN users u ON u.id = s.mangaka_id
-                     WHERE s.id = ? LIMIT 1"
-                );
-                $sStmt->execute([$seriesId]);
-                $sInfo = $sStmt->fetch();
+                // Lấy mangaka_id của series nếu chưa lấy ở trên
+                if (!isset($sInfo)) {
+                    $sStmt = $db->prepare(
+                        "SELECT s.mangaka_id, s.title, u.username AS mangaka_name
+                         FROM series s JOIN users u ON u.id = s.mangaka_id
+                         WHERE s.id = ? LIMIT 1"
+                    );
+                    $sStmt->execute([$seriesId]);
+                    $sInfo = $sStmt->fetch();
+                }
                 if ($sInfo) {
                     $dropInfo = $prevRank ? " (từ hạng {$prevRank} xuống hạng {$rankPos})" : "";
                     if ($isDanger && $bigDrop) {
@@ -143,6 +226,7 @@ if ($action === 'submit_votes') {
                     $notifications[$sInfo['mangaka_id']] = $msg;
                 }
             }
+            unset($sInfo); // Giải phóng biến
         }
 
         // Gửi notifications
