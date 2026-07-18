@@ -381,9 +381,9 @@ $roleDisplayNames = [
 
 <!-- Tabs Navigation -->
 <div class="admin-tabs">
-    <button class="tab-btn active" onclick="switchTab('overview')">📊 Tổng quan & Cấu hình</button>
-    <button class="tab-btn" onclick="switchTab('users')">👥 Quản lý Thành viên</button>
-    <button class="tab-btn" onclick="switchTab('series')">📚 Quản lý Bộ truyện</button>
+    <button class="tab-btn active" onclick="switchTab('overview')"><i class="fi fi-rr-chart-pie" style="margin-right:4px;"></i> Tổng quan & Cấu hình</button>
+    <button class="tab-btn" onclick="switchTab('users')"><i class="fi fi-rr-users" style="margin-right:4px;"></i> Quản lý Thành viên</button>
+    <button class="tab-btn" onclick="switchTab('series')"><i class="fi fi-rr-book" style="margin-right:4px;"></i> Quản lý Bộ truyện</button>
 </div>
 
 <!-- ================= Tab 1: Tổng quan & Cấu hình ================= -->
@@ -432,7 +432,7 @@ $roleDisplayNames = [
         <div class="card">
             <div class="card-header">
                 <div>
-                    <h3 class="card-title">💰 Cài đặt đơn giá trợ lý</h3>
+                    <h3 class="card-title"><i class="fi fi-rr-usd-circle" style="margin-right:4px;"></i> Cài đặt đơn giá trợ lý</h3>
                     <p class="card-subtitle">Đặt đơn giá thanh toán mặc định cho mỗi trang truyện trợ lý vẽ hoàn thành (VND/Trang).</p>
                 </div>
             </div>
@@ -447,8 +447,8 @@ $roleDisplayNames = [
                     </div>
                 </div>
                 
-                <button type="submit" class="btn btn-primary" style="width:100%;">
-                    💾 Lưu cấu hình
+                <button type="submit" class="btn btn-primary" style="width:100%; display:inline-flex; align-items:center; justify-content:center; gap:6px;">
+                    <i class="fi fi-rr-disk"></i> Lưu cấu hình
                 </button>
             </form>
         </div>
@@ -456,14 +456,14 @@ $roleDisplayNames = [
         <div class="card">
             <div class="card-header">
                 <div>
-                    <h3 class="card-title">💡 Thông tin vận hành</h3>
+                    <h3 class="card-title"><i class="fi fi-rr-info" style="margin-right:4px;"></i> Thông tin vận hành</h3>
                     <p class="card-subtitle">Lưu ý khi thay đổi các cài đặt hệ thống.</p>
                 </div>
             </div>
             <div style="font-size: 0.9rem; color: var(--text-muted); display:flex; flex-direction:column; gap:12px;">
-                <p>📌 <strong>Đơn giá trợ lý:</strong> Được dùng làm căn cứ tự động tính toán thu nhập hàng tháng của trợ lý (Manga Assistant) trong phần bảng lương, trừ khi họa sĩ ghi đè đơn giá cụ thể khi phê duyệt.</p>
-                <p>📌 <strong>Kiểm soát tài khoản:</strong> Khi tài khoản bị vô hiệu hóa (deactivated), người dùng đó sẽ bị ngắt kết nối session lập tức khi reload trang và không thể thực hiện đăng nhập lại.</p>
-                <p>📌 <strong>Bảo vệ an toàn:</strong> Hệ thống không cho phép Quản trị viên tự vô hiệu hóa tài khoản của chính mình để tránh sự cố mất quyền điều hành đột ngột.</p>
+                <p><i class="fi fi-rr-marker" style="margin-right:4px;"></i> <strong>Đơn giá trợ lý:</strong> Được dùng làm căn cứ tự động tính toán thu nhập hàng tháng của trợ lý (Manga Assistant) trong phần bảng lương, trừ khi họa sĩ ghi đè đơn giá cụ thể khi phê duyệt.</p>
+                <p><i class="fi fi-rr-marker" style="margin-right:4px;"></i> <strong>Kiểm soát tài khoản:</strong> Khi tài khoản bị vô hiệu hóa (deactivated), người dùng đó sẽ bị ngắt kết nối session lập tức khi reload trang và không thể thực hiện đăng nhập lại.</p>
+                <p><i class="fi fi-rr-marker" style="margin-right:4px;"></i> <strong>Bảo vệ an toàn:</strong> Hệ thống không cho phép Quản trị viên tự vô hiệu hóa tài khoản của chính mình để tránh sự cố mất quyền điều hành đột ngột.</p>
             </div>
         </div>
     </div>
@@ -516,8 +516,8 @@ $roleDisplayNames = [
                 <tbody>
                     <?php if (empty($usersList)): ?>
                         <tr>
-                            <td colspan="6" style="text-align:center; padding:40px; color:var(--text-muted);">
-                                🔍 Không tìm thấy thành viên nào.
+                            <td colspan="6" style="text-align:center; padding:40px; color:var(--text-muted); display:inline-flex; align-items:center; gap:6px; justify-content:center; width:100%;">
+                                <i class="fi fi-rr-search"></i> Không tìm thấy thành viên nào.
                             </td>
                         </tr>
                     <?php else: ?>
@@ -624,8 +624,8 @@ $roleDisplayNames = [
                 <tbody>
                     <?php if (empty($seriesList)): ?>
                         <tr>
-                            <td colspan="7" style="text-align:center; padding:40px; color:var(--text-muted);">
-                                🔍 Không tìm thấy bộ truyện nào.
+                            <td colspan="7" style="text-align:center; padding:40px; color:var(--text-muted); display:inline-flex; align-items:center; gap:6px; justify-content:center; width:100%;">
+                                <i class="fi fi-rr-search"></i> Không tìm thấy bộ truyện nào.
                             </td>
                         </tr>
                     <?php else: ?>

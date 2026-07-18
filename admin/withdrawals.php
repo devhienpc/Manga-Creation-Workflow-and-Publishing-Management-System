@@ -768,10 +768,10 @@ foreach ($requests as $req) {
                         <?php foreach ($requests as $req): ?>
                             <?php
                             $sm = $statusMeta[$req['status']] ?? ['label' => $req['status'], 'cls' => 'wd-st-pending'];
-                            $methodIcon = '🏦';
+                            $methodIcon = '<i class="fi fi-rr-bank"></i>';
                             $methodName = 'Ngân hàng';
-                            if ($req['method'] === 'momo')    { $methodIcon = '📱'; $methodName = 'MoMo'; }
-                            if ($req['method'] === 'zalopay') { $methodIcon = '💳'; $methodName = 'ZaloPay'; }
+                            if ($req['method'] === 'momo')    { $methodIcon = '<i class="fi fi-rr-smartphone"></i>'; $methodName = 'MoMo'; }
+                            if ($req['method'] === 'zalopay') { $methodIcon = '<i class="fi fi-rr-credit-card"></i>'; $methodName = 'ZaloPay'; }
                             $avUrl = (!empty($req['avatar'])) ? avatarImageUrl($req['avatar']) : (BASE_URL . 'assets/images/default-avatar.png');
                             $rl = $roleLabels[$req['role']] ?? $req['role'];
                             ?>
@@ -937,16 +937,16 @@ foreach ($requests as $req) {
 
             <!-- QR / ewallet -->
             <div class="wd-section" id="mdQrSection" style="display:none;">
-                <div class="wd-section-title"><i class="fi fi-rr-qrcode"></i> <span id="mdQrTitle">📱 Quét QR để chuyển tiền</span></div>
+                <div class="wd-section-title"><i class="fi fi-rr-qrcode"></i> <span id="mdQrTitle"><i class="fi fi-rr-smartphone" style="margin-right:4px;"></i> Quét QR để chuyển tiền</span></div>
                 <div id="mdQrContent"></div>
             </div>
 
             <!-- Actions -->
             <div id="mdActionsArea">
                 <div class="wd-actions" id="mdActions">
-                    <button class="wd-btn wd-btn-process" id="btnProcessing" onclick="doProcessing()">▶️ Đánh dấu Đang xử lý</button>
-                    <button class="wd-btn wd-btn-complete" id="btnComplete" onclick="doComplete()">✅ Xác nhận đã chuyển tiền</button>
-                    <button class="wd-btn wd-btn-reject" id="btnRejectToggle" onclick="toggleRejectArea()">❌ Từ chối</button>
+                    <button class="wd-btn wd-btn-process" id="btnProcessing" onclick="doProcessing()" style="display:inline-flex; align-items:center; gap:6px; justify-content:center;"><i class="fi fi-rr-play"></i> Đánh dấu Đang xử lý</button>
+                    <button class="wd-btn wd-btn-complete" id="btnComplete" onclick="doComplete()" style="display:inline-flex; align-items:center; gap:6px; justify-content:center;"><i class="fi fi-rr-check-circle"></i> Xác nhận đã chuyển tiền</button>
+                    <button class="wd-btn wd-btn-reject" id="btnRejectToggle" onclick="toggleRejectArea()" style="display:inline-flex; align-items:center; gap:6px; justify-content:center;"><i class="fi fi-rr-cross-circle"></i> Từ chối</button>
                 </div>
                 <div class="wd-reject-area" id="rejectArea">
                     <textarea id="rejectReason" placeholder="Nhập lý do từ chối (bắt buộc)..."></textarea>
@@ -1004,12 +1004,26 @@ function switchWdTab(tabId) {
     }
 }
 
-// Auto-switch on load if hash matches
-window.addEventListener('DOMContentLoaded', () => {
+// Auto-switch on load or hash change if hash matches
+function checkHashTab() {
     if (window.location.hash === '#tab-stats') {
-        switchWdTab('tab-finance');
+        const finTab = document.getElementById('tab-finance');
+        if (finTab && !finTab.classList.contains('active')) {
+            switchWdTab('tab-finance');
+        }
+    } else if (window.location.hash === '#tab-withdraw' || window.location.hash === '') {
+        const withdrawTab = document.getElementById('tab-withdraw');
+        if (withdrawTab && !withdrawTab.classList.contains('active')) {
+            switchWdTab('tab-withdraw');
+        }
     }
-});
+}
+
+window.addEventListener('hashchange', checkHashTab);
+window.addEventListener('DOMContentLoaded', checkHashTab);
+if (document.readyState !== 'loading') {
+    checkHashTab();
+}
 
 // ── Modal ──
 function openWdModal(id) {
@@ -1046,7 +1060,7 @@ function openWdModal(id) {
 
     if (r.method === 'bank_transfer' && r.qr_url) {
         qrSection.style.display = 'block';
-        qrTitle.textContent = '📱 Quét QR để chuyển tiền';
+        qrTitle.innerHTML = '<i class="fi fi-rr-smartphone" style="margin-right:4.px;"></i> Quét QR để chuyển tiền';
         qrContent.innerHTML = `
             <div class="wd-qr-box">
                 <img src="${r.qr_url}" width="220" height="220" alt="VietQR" loading="lazy">
@@ -1057,7 +1071,8 @@ function openWdModal(id) {
     } else if (r.method === 'momo' || r.method === 'zalopay') {
         qrSection.style.display = 'block';
         const appName = r.method === 'momo' ? 'MoMo' : 'ZaloPay';
-        qrTitle.textContent = '📱 Chuyển tiền qua ' + appName;
+        const walletIcon = r.method === 'momo' ? '<i class="fi fi-rr-smartphone" style="margin-right:4px;"></i>' : '<i class="fi fi-rr-credit-card" style="margin-right:4px;"></i>';
+        qrTitle.innerHTML = walletIcon + ' Chuyển tiền qua ' + appName;
         qrContent.innerHTML = `
             <div class="wd-ewallet-box">
                 <div style="font-size:.82rem; color:var(--text-muted);">Chuyển tiền qua app ${appName} đến số:</div>

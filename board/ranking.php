@@ -421,9 +421,9 @@ $nowYear  = (int)date('Y');
                                 style="animation-delay: <?= $idx * 0.04 ?>s">
                                 <td style="text-align:center;">
                                     <div class="rank-badge <?= $badgeClass ?>">
-                                        <?php if ($rank === 1): ?>🥇
-                                        <?php elseif ($rank === 2): ?>🥈
-                                        <?php elseif ($rank === 3): ?>🥉
+                                        <?php if ($rank === 1): ?><i class="fi fi-rr-crown" style="color:#f59e0b; font-size:1rem;"></i>
+                                        <?php elseif ($rank === 2): ?><i class="fi fi-rr-crown" style="color:#94a3b8; font-size:1rem;"></i>
+                                        <?php elseif ($rank === 3): ?><i class="fi fi-rr-crown" style="color:#b45309; font-size:1rem;"></i>
                                         <?php else: ?><?= $rank ?><?php endif; ?>
                                     </div>
                                 </td>
@@ -433,8 +433,8 @@ $nowYear  = (int)date('Y');
                                 </td>
                                 <td style="font-size:0.83rem; color:var(--text-secondary);"><?= htmlspecialchars($row['mangaka_name']) ?></td>
                                 <td>
-                                    <span style="font-size:0.78rem; color:<?= $row['publish_schedule'] === 'weekly' ? '#6ee7b7' : '#93c5fd' ?>;">
-                                        <?= $row['publish_schedule'] === 'weekly' ? '📅 Tuần' : '🗓️ Tháng' ?>
+                                    <span style="font-size:0.78rem; color:<?= $row['publish_schedule'] === 'weekly' ? '#6ee7b7' : '#93c5fd' ?>; display:inline-flex; align-items:center; gap:4px;">
+                                        <?= $row['publish_schedule'] === 'weekly' ? '<i class="fi fi-rr-calendar"></i> Tuần' : '<i class="fi fi-rr-calendar-lines"></i> Tháng' ?>
                                     </span>
                                 </td>
                                 <td>
@@ -498,15 +498,15 @@ $nowYear  = (int)date('Y');
 
             <?php if (empty($publishingSeries)): ?>
                 <div style="text-align:center; padding:30px 10px; color:var(--text-muted); font-size:0.85rem;">
-                    <div style="font-size:2rem; margin-bottom:10px; opacity:0.4;">📭</div>
+                    <div style="font-size:2rem; margin-bottom:10px; opacity:0.4;"><i class="fi fi-rr-inbox"></i></div>
                     <p>Chưa có series nào đang xuất bản để nhập phiếu bình chọn.</p>
                 </div>
             <?php else: ?>
                 <!-- Chọn loại kỳ -->
                 <label style="font-size:0.72rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.05em; display:block; margin-bottom:8px;">Loại kỳ phát hành</label>
                 <div class="period-selector">
-                    <button class="period-type-btn active" id="btnWeekPeriod" onclick="setPeriodType('week')">📅 Theo tuần</button>
-                    <button class="period-type-btn" id="btnMonthPeriod" onclick="setPeriodType('month')">🗓️ Theo tháng</button>
+                    <button class="period-type-btn active" id="btnWeekPeriod" onclick="setPeriodType('week')" style="display:inline-flex; align-items:center; gap:6px;"><i class="fi fi-rr-calendar"></i> Theo tuần</button>
+                    <button class="period-type-btn" id="btnMonthPeriod" onclick="setPeriodType('month')" style="display:inline-flex; align-items:center; gap:6px;"><i class="fi fi-rr-calendar-lines"></i> Theo tháng</button>
                 </div>
 
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;" id="periodInputRow">
@@ -522,8 +522,8 @@ $nowYear  = (int)date('Y');
                     </div>
                 </div>
 
-                <div style="padding:8px 14px; background:rgba(99,102,241,0.08); border:1px solid rgba(99,102,241,.2); border-radius:8px; margin-bottom:16px; font-size:0.82rem; color:#a5b4fc;" id="periodPreview">
-                    📌 Kỳ: <strong id="periodPreviewText"><?= $nowYear ?>-W<?= str_pad($nowWeek, 2, '0', STR_PAD_LEFT) ?></strong>
+                <div style="padding:8px 14px; background:rgba(99,102,241,0.08); border:1px solid rgba(99,102,241,.2); border-radius:8px; margin-bottom:16px; font-size:0.82rem; color:#a5b4fc; display:inline-flex; align-items:center; gap:6px;" id="periodPreview">
+                    <i class="fi fi-rr-marker"></i> Kỳ: <strong id="periodPreviewText"><?= $nowYear ?>-W<?= str_pad($nowWeek, 2, '0', STR_PAD_LEFT) ?></strong>
                 </div>
 
                 <!-- Table nhập votes -->

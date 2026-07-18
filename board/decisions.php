@@ -353,14 +353,14 @@ $dangerZone  = $totalPub > 0 ? (int)ceil($totalPub * 0.75) : 99;
             <div id="optWeeklyChange"
                  onclick="selectNewSchedule('weekly')"
                  style="padding:20px; border-radius:10px; border:2px solid var(--border); background:var(--bg-card); cursor:pointer; text-align:center; transition:all .18s;">
-                <div style="font-size:1.8rem; margin-bottom:8px;">📅</div>
+                <div style="font-size:1.8rem; margin-bottom:8px;"><i class="fi fi-rr-calendar"></i></div>
                 <div style="font-weight:700; font-size:0.9rem; color:#fff;">Hàng tuần</div>
                 <div style="font-size:0.72rem; color:var(--text-muted); margin-top:4px;">1 chương / tuần</div>
             </div>
             <div id="optMonthlyChange"
                  onclick="selectNewSchedule('monthly')"
                  style="padding:20px; border-radius:10px; border:2px solid var(--border); background:var(--bg-card); cursor:pointer; text-align:center; transition:all .18s;">
-                <div style="font-size:1.8rem; margin-bottom:8px;">🗓️</div>
+                <div style="font-size:1.8rem; margin-bottom:8px;"><i class="fi fi-rr-calendar-lines"></i></div>
                 <div style="font-weight:700; font-size:0.9rem; color:#fff;">Hàng tháng</div>
                 <div style="font-size:0.72rem; color:var(--text-muted); margin-top:4px;">1 chương / tháng</div>
             </div>
@@ -369,8 +369,8 @@ $dangerZone  = $totalPub > 0 ? (int)ceil($totalPub * 0.75) : 99;
         <input type="hidden" id="newScheduleVal" value="">
         <div style="display:flex; gap:10px; justify-content:flex-end;">
             <button class="btn btn-secondary" onclick="closeScheduleModal()">Hủy bỏ</button>
-            <button class="btn btn-primary" id="btnConfirmSchedule" onclick="confirmScheduleChange()" disabled>
-                📅 Xác nhận đổi lịch
+            <button class="btn btn-primary" id="btnConfirmSchedule" onclick="confirmScheduleChange()" disabled style="display:inline-flex; align-items:center; gap:6px;">
+                <i class="fi fi-rr-refresh"></i> Xác nhận đổi lịch
             </button>
         </div>
     </div>
@@ -409,17 +409,17 @@ $dangerZone  = $totalPub > 0 ? (int)ceil($totalPub * 0.75) : 99;
 <!-- Tabs -->
 <div class="tab-row">
     <button class="tab-btn active" id="tabPublishing" onclick="switchTab('Publishing')">
-        📡 Đang xuất bản
+        <i class="fi fi-rr-paper-plane" style="margin-right:4px;"></i> Đang xuất bản
         <span style="background:rgba(16,185,129,.2); color:#6ee7b7; border-radius:10px; padding:1px 7px; font-size:.65rem; font-weight:800; margin-left:4px;"><?= count($publishingSeries) ?></span>
     </button>
     <button class="tab-btn" id="tabApproved" onclick="switchTab('Approved')">
-        ✅ Vừa duyệt
+        <i class="fi fi-rr-check-circle" style="margin-right:4px;"></i> Vừa duyệt
         <?php if (!empty($approvedSeries)): ?>
             <span style="background:rgba(99,102,241,.2); color:#a5b4fc; border-radius:10px; padding:1px 7px; font-size:.65rem; font-weight:800; margin-left:4px;"><?= count($approvedSeries) ?></span>
         <?php endif; ?>
     </button>
     <button class="tab-btn" id="tabHistory" onclick="switchTab('History')">
-        📋 Lịch sử quyết định
+        <i class="fi fi-rr-clipboard" style="margin-right:4px;"></i> Lịch sử quyết định
         <span style="background:rgba(255,255,255,.08); border-radius:10px; padding:1px 7px; font-size:.65rem; font-weight:700; margin-left:4px;"><?= count($historyLogs) ?></span>
     </button>
 </div>
@@ -445,12 +445,12 @@ $dangerZone  = $totalPub > 0 ? (int)ceil($totalPub * 0.75) : 99;
             $prevRank = $s['prev_rank']     ? (int)$s['prev_rank']    : null;
             $isDanger = $rank !== null && $totalPub >= 3 && $rank >= $dangerZone;
             $isTop3   = $rank !== null && $rank <= 3;
-
+ 
             $rankDiff = ($rank !== null && $prevRank !== null) ? ($prevRank - $rank) : null;
             $topBarClass = $isTop3 ? 'gold' : ($isDanger ? 'danger' : '');
-
+ 
             $newSched = $s['publish_schedule'] === 'weekly' ? 'monthly' : 'weekly';
-            $newSchedLabel = $newSched === 'weekly' ? '📅 Đổi sang Tuần' : '🗓️ Đổi sang Tháng';
+            $newSchedLabel = $newSched === 'weekly' ? '<i class="fi fi-rr-calendar"></i> Đổi sang Tuần' : '<i class="fi fi-rr-calendar-lines"></i> Đổi sang Tháng';
         ?>
             <div class="series-decision-card <?= $isDanger ? 'danger-card' : '' ?>" id="scard-<?= $s['id'] ?>">
                 <div class="card-top-bar <?= $topBarClass ?>"></div>
@@ -459,34 +459,34 @@ $dangerZone  = $totalPub > 0 ? (int)ceil($totalPub * 0.75) : 99;
                     <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px; margin-bottom:8px;">
                         <div>
                             <div class="sdc-title"><?= htmlspecialchars($s['title']) ?></div>
-                            <div style="font-size:0.75rem; color:var(--text-muted); margin-top:2px;">🎨 <?= htmlspecialchars($s['mangaka_name']) ?></div>
+                            <div style="font-size:0.75rem; color:var(--text-muted); margin-top:2px;"><i class="fi fi-rr-palette" style="margin-right:4px;"></i> <?= htmlspecialchars($s['mangaka_name']) ?></div>
                         </div>
                         <?php if ($rank !== null): ?>
                             <div class="sdc-rank-badge <?= $isTop3 ? 'rank-top' : ($isDanger ? 'rank-danger' : 'rank-normal') ?>">
-                                <?php if ($rank === 1): ?>🥇
-                                <?php elseif ($rank === 2): ?>🥈
-                                <?php elseif ($rank === 3): ?>🥉
-                                <?php elseif ($isDanger): ?>⚠️<?php else: ?>#<?= $rank ?><?php endif; ?>
+                                <?php if ($rank === 1): ?><i class="fi fi-rr-crown" style="color:#f59e0b; font-size:1.1rem; vertical-align:middle;"></i>
+                                <?php elseif ($rank === 2): ?><i class="fi fi-rr-crown" style="color:#94a3b8; font-size:1.1rem; vertical-align:middle;"></i>
+                                <?php elseif ($rank === 3): ?><i class="fi fi-rr-crown" style="color:#b45309; font-size:1.1rem; vertical-align:middle;"></i>
+                                <?php elseif ($isDanger): ?><i class="fi fi-rr-warning" style="color:#f97316; font-size:1.1rem; vertical-align:middle;"></i><?php else: ?>#<?= $rank ?><?php endif; ?>
                                 <span style="font-size:0.72rem;"><?= $rank <= 3 ? "Top {$rank}" : "Hạng {$rank}" ?></span>
                             </div>
                         <?php else: ?>
                             <div class="sdc-rank-badge rank-none">Chưa có rank</div>
                         <?php endif; ?>
                     </div>
-
+ 
                     <!-- Meta -->
                     <div class="sdc-meta">
                         <span>
                             <?php $schedColor = $s['publish_schedule'] === 'weekly' ? '#6ee7b7' : '#93c5fd'; ?>
-                            <span style="color:<?= $schedColor ?>; font-weight:700;">
-                                <?= $s['publish_schedule'] === 'weekly' ? '📅 Tuần' : '🗓️ Tháng' ?>
+                            <span style="color:<?= $schedColor ?>; font-weight:700; display:inline-flex; align-items:center; gap:4px;">
+                                <?= $s['publish_schedule'] === 'weekly' ? '<i class="fi fi-rr-calendar"></i> Tuần' : '<i class="fi fi-rr-calendar-lines"></i> Tháng' ?>
                             </span>
                         </span>
                         <?php if ($s['latest_votes'] !== null): ?>
-                            <span>🗳️ <?= number_format($s['latest_votes']) ?> votes</span>
+                            <span style="display:inline-flex; align-items:center; gap:4px;"><i class="fi fi-rr-checkbox"></i> <?= number_format($s['latest_votes']) ?> votes</span>
                         <?php endif; ?>
                         <?php if ($s['latest_period']): ?>
-                            <span>📌 Kỳ <?= htmlspecialchars($s['latest_period']) ?></span>
+                            <span style="display:inline-flex; align-items:center; gap:4px;"><i class="fi fi-rr-marker"></i> Kỳ <?= htmlspecialchars($s['latest_period']) ?></span>
                         <?php endif; ?>
                     </div>
 
@@ -549,17 +549,17 @@ $dangerZone  = $totalPub > 0 ? (int)ceil($totalPub * 0.75) : 99;
                         <?= htmlspecialchars($s['title']) ?>
                         <span class="badge badge-green" style="font-size:.65rem; padding:2px 8px; margin-left:6px; vertical-align:middle;">✓ Đã duyệt</span>
                     </div>
-                    <div style="font-size:0.78rem; color:var(--text-muted);">
-                        🎨 <?= htmlspecialchars($s['mangaka_name']) ?>
+                    <div style="font-size:0.78rem; color:var(--text-muted); display:inline-flex; align-items:center; gap:6px;">
+                        <i class="fi fi-rr-palette"></i> <?= htmlspecialchars($s['mangaka_name']) ?>
                         &nbsp;·&nbsp;
-                        <?= $s['publish_schedule'] === 'weekly' ? '📅 Lịch tuần' : '🗓️ Lịch tháng' ?>
+                        <?= $s['publish_schedule'] === 'weekly' ? '<i class="fi fi-rr-calendar"></i> Lịch tuần' : '<i class="fi fi-rr-calendar-lines"></i> Lịch tháng' ?>
                         <?php if ($s['decision_date']): ?>
                             &nbsp;·&nbsp; Duyệt: <?= date('d/m/Y', strtotime($s['decision_date'])) ?>
                         <?php endif; ?>
                     </div>
                     <?php if (!empty($s['board_notes'])): ?>
-                        <div style="margin-top:6px; font-size:0.75rem; color:#c7d2fe; max-width:500px;">
-                            💬 <?= htmlspecialchars(mb_strimwidth($s['board_notes'], 0, 120, '…')) ?>
+                        <div style="margin-top:6px; font-size:0.75rem; color:#c7d2fe; max-width:500px; display:inline-flex; align-items:center; gap:6px;">
+                            <i class="fi fi-rr-comment"></i> <?= htmlspecialchars(mb_strimwidth($s['board_notes'], 0, 120, '…')) ?>
                         </div>
                     <?php endif; ?>
                 </div>
@@ -626,13 +626,13 @@ $dangerZone  = $totalPub > 0 ? (int)ceil($totalPub * 0.75) : 99;
                                     default           => 'log-action-cancel',
                                 };
                                 $actLabel = match($log['action']) {
-                                    'approved'       => '✅ Phê duyệt',
-                                    'rejected'       => '❌ Từ chối',
-                                    'schedule_change' => '📅 Đổi lịch',
-                                    default           => '🚫 Huỷ bỏ',
+                                    'approved'       => '<i class="fi fi-rr-check-circle"></i> Phê duyệt',
+                                    'rejected'       => '<i class="fi fi-rr-cross-circle"></i> Từ chối',
+                                    'schedule_change' => '<i class="fi fi-rr-calendar"></i> Đổi lịch',
+                                    default           => '<i class="fi fi-rr-ban"></i> Huỷ bỏ',
                                 };
                                 ?>
-                                <span class="badge <?= $actClass ?>" style="font-size:.7rem; padding:3px 10px; white-space:nowrap;">
+                                <span class="badge <?= $actClass ?>" style="font-size:.7rem; padding:3px 10px; white-space:nowrap; display:inline-flex; align-items:center; gap:4px;">
                                     <?= $actLabel ?>
                                 </span>
                             </td>
@@ -730,8 +730,8 @@ function openScheduleModal(seriesId, seriesName, currentSched) {
     currentSchedule = currentSched;
     document.getElementById('scheduleSeriesId').value       = seriesId;
     document.getElementById('scheduleSeriesName').textContent = seriesName;
-    document.getElementById('scheduleCurrentLabel').textContent =
-        currentSched === 'weekly' ? '📅 Hàng tuần' : '🗓️ Hàng tháng';
+    document.getElementById('scheduleCurrentLabel').innerHTML =
+        currentSched === 'weekly' ? '<i class="fi fi-rr-calendar"></i> Hàng tuần' : '<i class="fi fi-rr-calendar-lines"></i> Hàng tháng';
     document.getElementById('newScheduleVal').value  = '';
     document.getElementById('btnConfirmSchedule').disabled = true;
 
