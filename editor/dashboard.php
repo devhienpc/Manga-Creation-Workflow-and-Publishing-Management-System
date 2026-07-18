@@ -85,11 +85,11 @@ $activeStudioTasks = $stmt->fetchAll();
 
 /* Maps nhãn loại và trạng thái */
 $seriesStatusConfig = [
-    'draft'      => ['Bản nháp',      'badge-gray',   '<i class="ph-fill ph-file-dashed"></i>'],
-    'submitted'  => ['Đã nộp',        'badge-blue',   '<i class="ph-fill ph-paper-plane-tilt"></i>'],
-    'approved'   => ['Đã duyệt',      'badge-purple', '<i class="ph-fill ph-check-circle"></i>'],
-    'publishing' => ['Đang xuất bản', 'badge-green',  '<i class="ph-fill ph-fire"></i>'],
-    'cancelled'  => ['Đã hủy',        'badge-red',    '<i class="ph-fill ph-x-circle"></i>'],
+    'draft'      => ['Bản nháp',      'badge-gray',   '??'],
+    'submitted'  => ['Đã nộp',        'badge-blue',   '<i class="fi fi-sr-paper-plane"></i>'],
+    'approved'   => ['Đã duyệt',      'badge-purple', '?'],
+    'publishing' => ['Đang xuất bản', 'badge-green',  '??'],
+    'cancelled'  => ['Đã hủy',        'badge-red',    '?'],
 ];
 
 $chapterStatusConfig = [
@@ -139,21 +139,21 @@ $taskStatusLabels = [
             <p class="text-xs text-muted font-bold" style="text-transform:uppercase; letter-spacing:0.5px;">Bản thảo chờ duyệt</p>
             <div class="stat-number" style="font-size: 2.2rem; font-weight:800; margin-top:5px; color:#fbbf24;"><?= $pendingManuscriptsCount ?></div>
         </div>
-        <div class="stat-icon" style="color:#fbbf24; font-size:2rem; opacity:0.8;"><i class="ph-fill ph-tray"></i></div>
+        <div class="stat-icon" style="color:#fbbf24; font-size:2rem; opacity:0.8;"><i class="fi fi-sr-paper-plane"></i></div>
     </div>
     <div class="card stat-card" style="padding: 20px;">
         <div>
             <p class="text-xs text-muted font-bold" style="text-transform:uppercase; letter-spacing:0.5px;">Tổng số bộ truyện hệ thống</p>
             <div class="stat-number" style="font-size: 2.2rem; font-weight:800; margin-top:5px;"><?= count($seriesList) ?></div>
         </div>
-        <div class="stat-icon" style="color:var(--red); font-size:2rem; opacity:0.8;"><i class="ph-fill ph-books"></i></div>
+        <div class="stat-icon" style="color:var(--red); font-size:2rem; opacity:0.8;"><i class="fi fi-sr-books"></i></div>
     </div>
     <div class="card stat-card" style="padding: 20px;">
         <div>
             <p class="text-xs text-muted font-bold" style="text-transform:uppercase; letter-spacing:0.5px;">Tasks Studio Đang Vẽ</p>
             <div class="stat-number" style="font-size: 2.2rem; font-weight:800; margin-top:5px; color:#60a5fa;"><?= count($activeStudioTasks) ?></div>
         </div>
-        <div class="stat-icon" style="color:#60a5fa; font-size:2rem; opacity:0.8;"><i class="ph-fill ph-palette"></i></div>
+        <div class="stat-icon" style="color:#60a5fa; font-size:2rem; opacity:0.8;"><i class="fi fi-sr-palette"></i></div>
     </div>
 </div>
 

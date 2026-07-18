@@ -4,6 +4,9 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+// Nạp biến môi trường từ file .env (phải gọi trước khi dùng hàm env())
+require_once __DIR__ . '/env.php';
+
 define('APP_NAME', 'Manga System');
 
 // Tự động nhận diện Base URL động
@@ -18,7 +21,7 @@ $relativeRoot = '';
 if (!empty($docRoot) && strpos($projectRoot, $docRoot) === 0) {
     $relativeRoot = substr($projectRoot, strlen($docRoot));
 } else {
-    $relativeRoot = preg_replace('/(config|auth|mangaka|assistant|editor|board|api|includes|admin)\/.*$/i', '', $scriptName);
+    $relativeRoot = preg_replace('/(config|auth|mangaka|assistant|editor|board|api|includes|admin|wallet|finance)\/.*$/i', '', $scriptName);
 }
 $relativeRoot = '/' . ltrim(str_replace('\\', '/', $relativeRoot), '/');
 $relativeRoot = rtrim($relativeRoot, '/') . '/';
@@ -33,8 +36,10 @@ define('UPLOAD_PATH', dirname(__DIR__) . '/assets/uploads/');
  * Chuẩn hóa đường dẫn file: chuyển backslash → forward slash, bỏ leading slash.
  * Dùng trước khi lưu vào DB hoặc truyền sang JavaScript.
  */
-function normalizeFilePath(?string $path): string {
-    if (empty($path)) return '';
+function normalizeFilePath(?string $path): string
+{
+    if (empty($path))
+        return '';
     return ltrim(str_replace('\\', '/', $path), '/');
 }
 
@@ -42,15 +47,18 @@ function normalizeFilePath(?string $path): string {
  * Chuẩn hóa mảng đường dẫn trang truyện để truyền vào JS (json_encode an toàn).
  * Backslash trong path gây lỗi JSON.parse ở JS do bị hiểu là Unicode escape (\u...).
  */
-function normalizePageUrls(array $urls): array {
+function normalizePageUrls(array $urls): array
+{
     return array_map('normalizeFilePath', $urls);
 }
 
 /**
  * Trả về URL đầy đủ cho file bản thảo / trang truyện.
  */
-function manuscriptUrl(?string $path): ?string {
-    if (empty($path)) return null;
+function manuscriptUrl(?string $path): ?string
+{
+    if (empty($path))
+        return null;
     if (strpos($path, 'http://') === 0 || strpos($path, 'https://') === 0) {
         return $path;
     }
@@ -70,8 +78,10 @@ function manuscriptUrl(?string $path): ?string {
  *   - Seed data cũ: 'assets/images/covers/xxx.png' → BASE_URL . 'assets/images/covers/xxx.png'
  *   - User upload:  'covers/mg_xxx.jpg'            → BASE_URL . 'assets/uploads/covers/mg_xxx.jpg'
  */
-function coverImageUrl(?string $cover): ?string {
-    if (empty($cover)) return null;
+function coverImageUrl(?string $cover): ?string
+{
+    if (empty($cover))
+        return null;
     // Nếu đã có tiền tố 'assets/' thì dùng thẳng BASE_URL
     if (strpos($cover, 'assets/') === 0) {
         return BASE_URL . $cover;
@@ -84,8 +94,10 @@ function coverImageUrl(?string $cover): ?string {
  * Trả về URL đầy đủ cho ảnh đại diện của user.
  * Hỗ trợ seed data và user upload.
  */
-function avatarImageUrl(?string $avatar): ?string {
-    if (empty($avatar)) return null;
+function avatarImageUrl(?string $avatar): ?string
+{
+    if (empty($avatar))
+        return null;
     if (strpos($avatar, 'http://') === 0 || strpos($avatar, 'https://') === 0) {
         return $avatar;
     }
@@ -101,8 +113,10 @@ function avatarImageUrl(?string $avatar): ?string {
 /**
  * Kiểm tra xem ảnh đại diện của user có tồn tại thực sự trên ổ đĩa hay không.
  */
-function avatarFileExists(?string $avatar): bool {
-    if (empty($avatar)) return false;
+function avatarFileExists(?string $avatar): bool
+{
+    if (empty($avatar))
+        return false;
     if (strpos($avatar, 'assets/') === 0) {
         return file_exists(dirname(__DIR__) . '/' . $avatar);
     }
@@ -115,8 +129,10 @@ function avatarFileExists(?string $avatar): bool {
 /**
  * Trả về thời gian chỉnh sửa cuối của ảnh đại diện để chống cache trình duyệt.
  */
-function avatarFileMtime(?string $avatar): int {
-    if (empty($avatar)) return time();
+function avatarFileMtime(?string $avatar): int
+{
+    if (empty($avatar))
+        return time();
     $path = '';
     if (strpos($avatar, 'assets/') === 0) {
         $path = dirname(__DIR__) . '/' . $avatar;
@@ -155,3 +171,16 @@ define('STATUS', [
     'submission' => ['pending', 'approved', 'rejected'],
     'annotation' => ['open', 'resolved']
 ]);
+
+// ── AI Tools API Keys (đọc từ .env, không hardcode) ──────────────────────
+// Hugging Face Inference API (dùng cho tính năng Tô màu)
+// Đăng ký tại: https://huggingface.co/settings/tokens
+define('HUGGINGFACE_API_KEY', env('HUGGINGFACE_API_KEY', ''));
+
+// Google Gemini API (dùng cho tính năng Phân đoạn vùng)
+// Đăng ký tại: https://aistudio.google.com/app/apikey
+define('GEMINI_API_KEY', env('GEMINI_API_KEY', ''));
+
+// Cloudflare Workers AI API (dùng cho tính năng Tô màu mới)
+define('CLOUDFLARE_ACCOUNT_ID', env('CLOUDFLARE_ACCOUNT_ID', ''));
+define('CLOUDFLARE_API_TOKEN', env('CLOUDFLARE_API_TOKEN', ''));

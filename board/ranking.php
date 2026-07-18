@@ -229,7 +229,7 @@ $nowYear  = (int)date('Y');
     transition: border-color 0.2s;
     outline: none;
 }
-.vote-num-input:focus { border-color: var(--accent-primary); box-shadow: 0 0 0 2px rgba(99,102,241,0.15); }
+.vote-num-input:focus { border-color: var(--red); box-shadow: 0 0 0 2px var(--red-glow); }
 
 /* Period selector */
 .period-selector {
@@ -250,9 +250,10 @@ $nowYear  = (int)date('Y');
     text-align: center;
 }
 .period-type-btn.active {
-    border-color: var(--accent-primary);
-    background: rgba(99,102,241,0.12);
-    color: #a5b4fc;
+    border-color: var(--red) !important;
+    background: var(--red-subtle) !important;
+    color: var(--text) !important;
+    box-shadow: 0 0 8px var(--red-glow);
 }
 
 /* Stats mini */
@@ -264,7 +265,7 @@ $nowYear  = (int)date('Y');
     background: var(--bg-input);
     text-align: center;
 }
-.stat-box .n { font-size: 1.5rem; font-weight: 800; color: #a5b4fc; }
+.stat-box .n { font-size: 1.5rem; font-weight: 800; color: var(--red); }
 .stat-box .l { font-size: 0.68rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; margin-top: 4px; }
 
 /* Period history pills */
@@ -281,8 +282,8 @@ $nowYear  = (int)date('Y');
     transition: all 0.15s;
     white-space: nowrap;
 }
-.period-pill:hover { border-color: rgba(99,102,241,.4); color: var(--text-primary); }
-.period-pill.current { border-color: var(--accent-primary); background: rgba(99,102,241,.1); color: #a5b4fc; }
+.period-pill:hover { border-color: var(--red); color: var(--text); }
+.period-pill.current { border-color: var(--red); background: var(--red-subtle); color: var(--text); }
 
 /* Empty state */
 .empty-rank {
@@ -420,9 +421,9 @@ $nowYear  = (int)date('Y');
                                 style="animation-delay: <?= $idx * 0.04 ?>s">
                                 <td style="text-align:center;">
                                     <div class="rank-badge <?= $badgeClass ?>">
-                                        <?php if ($rank === 1): ?>🥇
-                                        <?php elseif ($rank === 2): ?>🥈
-                                        <?php elseif ($rank === 3): ?>🥉
+                                        <?php if ($rank === 1): ?><i class="fi fi-rr-crown" style="color:#f59e0b; font-size:1rem;"></i>
+                                        <?php elseif ($rank === 2): ?><i class="fi fi-rr-crown" style="color:#94a3b8; font-size:1rem;"></i>
+                                        <?php elseif ($rank === 3): ?><i class="fi fi-rr-crown" style="color:#b45309; font-size:1rem;"></i>
                                         <?php else: ?><?= $rank ?><?php endif; ?>
                                     </div>
                                 </td>
@@ -432,8 +433,8 @@ $nowYear  = (int)date('Y');
                                 </td>
                                 <td style="font-size:0.83rem; color:var(--text-secondary);"><?= htmlspecialchars($row['mangaka_name']) ?></td>
                                 <td>
-                                    <span style="font-size:0.78rem; color:<?= $row['publish_schedule'] === 'weekly' ? '#6ee7b7' : '#93c5fd' ?>;">
-                                        <?= $row['publish_schedule'] === 'weekly' ? '📅 Tuần' : '🗓️ Tháng' ?>
+                                    <span style="font-size:0.78rem; color:<?= $row['publish_schedule'] === 'weekly' ? '#6ee7b7' : '#93c5fd' ?>; display:inline-flex; align-items:center; gap:4px;">
+                                        <?= $row['publish_schedule'] === 'weekly' ? '<i class="fi fi-rr-calendar"></i> Tuần' : '<i class="fi fi-rr-calendar-lines"></i> Tháng' ?>
                                     </span>
                                 </td>
                                 <td>
@@ -497,15 +498,15 @@ $nowYear  = (int)date('Y');
 
             <?php if (empty($publishingSeries)): ?>
                 <div style="text-align:center; padding:30px 10px; color:var(--text-muted); font-size:0.85rem;">
-                    <div style="font-size:2rem; margin-bottom:10px; opacity:0.4;">📭</div>
+                    <div style="font-size:2rem; margin-bottom:10px; opacity:0.4;"><i class="fi fi-rr-inbox"></i></div>
                     <p>Chưa có series nào đang xuất bản để nhập phiếu bình chọn.</p>
                 </div>
             <?php else: ?>
                 <!-- Chọn loại kỳ -->
                 <label style="font-size:0.72rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.05em; display:block; margin-bottom:8px;">Loại kỳ phát hành</label>
                 <div class="period-selector">
-                    <button class="period-type-btn active" id="btnWeekPeriod" onclick="setPeriodType('week')">📅 Theo tuần</button>
-                    <button class="period-type-btn" id="btnMonthPeriod" onclick="setPeriodType('month')">🗓️ Theo tháng</button>
+                    <button class="period-type-btn active" id="btnWeekPeriod" onclick="setPeriodType('week')" style="display:inline-flex; align-items:center; gap:6px;"><i class="fi fi-rr-calendar"></i> Theo tuần</button>
+                    <button class="period-type-btn" id="btnMonthPeriod" onclick="setPeriodType('month')" style="display:inline-flex; align-items:center; gap:6px;"><i class="fi fi-rr-calendar-lines"></i> Theo tháng</button>
                 </div>
 
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;" id="periodInputRow">
@@ -521,18 +522,19 @@ $nowYear  = (int)date('Y');
                     </div>
                 </div>
 
-                <div style="padding:8px 14px; background:rgba(99,102,241,0.08); border:1px solid rgba(99,102,241,.2); border-radius:8px; margin-bottom:16px; font-size:0.82rem; color:#a5b4fc;" id="periodPreview">
-                    📌 Kỳ: <strong id="periodPreviewText"><?= $nowYear ?>-W<?= str_pad($nowWeek, 2, '0', STR_PAD_LEFT) ?></strong>
+                <div style="padding:8px 14px; background:rgba(99,102,241,0.08); border:1px solid rgba(99,102,241,.2); border-radius:8px; margin-bottom:16px; font-size:0.82rem; color:#a5b4fc; display:inline-flex; align-items:center; gap:6px;" id="periodPreview">
+                    <i class="fi fi-rr-marker"></i> Kỳ: <strong id="periodPreviewText"><?= $nowYear ?>-W<?= str_pad($nowWeek, 2, '0', STR_PAD_LEFT) ?></strong>
                 </div>
 
                 <!-- Table nhập votes -->
-                <label style="font-size:0.72rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.05em; display:block; margin-bottom:8px;">Số votes từng series</label>
+                <label style="font-size:0.72rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.05em; display:block; margin-bottom:8px;">Số votes & Doanh thu từng series</label>
                 <div style="max-height:320px; overflow-y:auto; border:1px solid var(--border); border-radius:8px; margin-bottom:16px;">
                     <table class="vote-input-table">
                         <thead>
                             <tr>
                                 <th>Bộ truyện</th>
                                 <th style="text-align:right;">Votes</th>
+                                <th style="text-align:right; width: 90px;">Doanh thu (₫)</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -552,6 +554,14 @@ $nowYear  = (int)date('Y');
                                            placeholder="0"
                                            value=""
                                            oninput="previewRank()">
+                                </td>
+                                <td style="text-align:right;">
+                                    <input type="number" class="vote-num-input series-revenue-input"
+                                           data-series-id="<?= $ps['id'] ?>"
+                                           min="0" max="999999999"
+                                           placeholder="0"
+                                           value=""
+                                           style="width: 80px; padding: 4px 6px; font-size: 0.8rem; background: var(--bg-input); border: 1px solid var(--border); color: #fff; border-radius: 4px; text-align: right;">
                                 </td>
                             </tr>
                         <?php endforeach; ?>
@@ -649,10 +659,15 @@ function submitVotes() {
 
     if (!confirm(`Xác nhận lưu kết quả bình chọn kỳ "${periodPreview}"?\n\nThao tác này không thể hoàn tác.`)) return;
 
-    const votesData = inputs.map(inp => ({
-        series_id:   parseInt(inp.dataset.seriesId),
-        reader_votes: parseInt(inp.value || '0')
-    }));
+    const votesData = inputs.map(inp => {
+        const seriesId = parseInt(inp.dataset.seriesId);
+        const revInp = document.querySelector(`.series-revenue-input[data-series-id="${seriesId}"]`);
+        return {
+            series_id:    seriesId,
+            reader_votes: parseInt(inp.value || '0'),
+            revenue:      parseFloat(revInp?.value || '0')
+        };
+    });
 
     const btn = document.getElementById('btnSubmitVotes');
     btn.disabled = true;

@@ -33,11 +33,11 @@ switch ($user['role']) {
     case 'assistant':
         $s1 = $db->prepare("SELECT COUNT(*) FROM tasks WHERE assigned_to = ? AND status = 'approved'");
         $s1->execute([$uid]);
-        $s2 = $db->prepare("SELECT COALESCE(SUM(approved_pages),0) FROM earnings WHERE assistant_id = ?");
+        $s2 = $db->prepare("SELECT COALESCE(SUM(gross_amount),0) FROM salary_records WHERE assistant_id = ? AND status = 'paid'");
         $s2->execute([$uid]);
         $stats = [
-            ['label' => 'Task hoàn thành', 'value' => (int) $s1->fetchColumn(), 'icon' => '✅'],
-            ['label' => 'Trang được duyệt', 'value' => (int) $s2->fetchColumn(), 'icon' => '🎨'],
+            ['label' => 'Nhiệm vụ hoàn thành', 'value' => (int) $s1->fetchColumn(), 'icon' => '✅'],
+            ['label' => 'Lương đã nhận', 'value' => number_format((float)$s2->fetchColumn()) . ' ₫', 'icon' => '💰'],
         ];
         break;
     case 'editor':

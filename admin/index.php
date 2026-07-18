@@ -78,24 +78,39 @@ if (isset($_GET['flash'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     
-    // Hành động 1: Lưu đơn giá trợ lý
+    // Hành động 1: Lưu đơn giá trợ lý theo từng loại task
     if ($action === 'save_assistant_rate') {
-        $rate = trim($_POST['default_assistant_rate'] ?? '250000');
-        // Validate rate là số dương
-        if (is_numeric($rate) && $rate >= 0) {
-            $stmtCheck = $db->prepare("SELECT COUNT(*) FROM settings WHERE key_name = 'default_assistant_rate'");
-            $stmtCheck->execute();
-            if ($stmtCheck->fetchColumn() > 0) {
-                $stmt = $db->prepare("UPDATE settings SET value_text = ? WHERE key_name = 'default_assistant_rate'");
-                $stmt->execute([$rate]);
-            } else {
-                $stmt = $db->prepare("INSERT INTO settings (key_name, value_text) VALUES ('default_assistant_rate', ?)");
-                $stmt->execute([$rate]);
+        $types = ['background', 'shading', 'effects', 'lettering', 'cleanup'];
+        $hasError = false;
+        $db->beginTransaction();
+        try {
+            foreach ($types as $type) {
+                $postKey = 'default_rate_' . $type;
+                $rate = trim($_POST[$postKey] ?? '0');
+                if (is_numeric($rate) && $rate >= 0) {
+                    $stmtCheck = $db->prepare("SELECT COUNT(*) FROM settings WHERE key_name = ?");
+                    $stmtCheck->execute([$postKey]);
+                    if ($stmtCheck->fetchColumn() > 0) {
+                        $db->prepare("UPDATE settings SET value_text = ? WHERE key_name = ?")->execute([$rate, $postKey]);
+                    } else {
+                        $db->prepare("INSERT INTO settings (key_name, value_text) VALUES (?, ?)")->execute([$postKey, $rate]);
+                    }
+                } else {
+                    $hasError = true;
+                }
             }
-            header('Location: ' . BASE_URL . 'admin/index.php?flash=rate_saved');
-            exit();
-        } else {
-            $flashMsg = 'Đơn giá trợ lý phải là một số hợp lệ lớn hơn hoặc bằng 0.';
+            if ($hasError) {
+                $db->rollBack();
+                $flashMsg = 'Đơn giá của mỗi loại nhiệm vụ phải là một số hợp lệ lớn hơn hoặc bằng 0.';
+                $flashType = 'error';
+            } else {
+                $db->commit();
+                header('Location: ' . BASE_URL . 'admin/index.php?flash=rate_saved');
+                exit();
+            }
+        } catch (\Throwable $e) {
+            if ($db->inTransaction()) $db->rollBack();
+            $flashMsg = 'Lỗi lưu cấu hình: ' . $e->getMessage();
             $flashType = 'error';
         }
     }
@@ -135,9 +150,23 @@ $totalChapters = (int)$db->query("SELECT COUNT(*) FROM chapters")->fetchColumn()
 $totalTasks = (int)$db->query("SELECT COUNT(*) FROM tasks")->fetchColumn();
 
 // Đọc cài đặt đơn giá hiện tại
-$stmtRate = $db->prepare("SELECT value_text FROM settings WHERE key_name = 'default_assistant_rate' LIMIT 1");
-$stmtRate->execute();
-$defaultRate = $stmtRate->fetchColumn() ?: '250000';
+$rates = [];
+foreach (['background', 'shading', 'effects', 'lettering', 'cleanup'] as $type) {
+    $stmt = $db->prepare("SELECT value_text FROM settings WHERE key_name = ? LIMIT 1");
+    $stmt->execute(['default_rate_' . $type]);
+    $val = $stmt->fetchColumn();
+    if ($val === false) {
+        $fallbacks = [
+            'background' => '100000',
+            'shading'    => '60000',
+            'effects'    => '50000',
+            'lettering'  => '30000',
+            'cleanup'    => '20000'
+        ];
+        $val = $fallbacks[$type];
+    }
+    $rates[$type] = $val;
+}
 
 // Bộ lọc cho danh sách Users
 $searchUser = trim($_GET['search_user'] ?? '');
@@ -381,9 +410,9 @@ $roleDisplayNames = [
 
 <!-- Tabs Navigation -->
 <div class="admin-tabs">
-    <button class="tab-btn active" onclick="switchTab('overview')">📊 Tổng quan & Cấu hình</button>
-    <button class="tab-btn" onclick="switchTab('users')">👥 Quản lý Thành viên</button>
-    <button class="tab-btn" onclick="switchTab('series')">📚 Quản lý Bộ truyện</button>
+    <button class="tab-btn active" onclick="switchTab('overview')"><i class="fi fi-rr-chart-pie" style="margin-right:4px;"></i> Tổng quan & Cấu hình</button>
+    <button class="tab-btn" onclick="switchTab('users')"><i class="fi fi-rr-users" style="margin-right:4px;"></i> Quản lý Thành viên</button>
+    <button class="tab-btn" onclick="switchTab('series')"><i class="fi fi-rr-book" style="margin-right:4px;"></i> Quản lý Bộ truyện</button>
 </div>
 
 <!-- ================= Tab 1: Tổng quan & Cấu hình ================= -->
@@ -396,7 +425,7 @@ $roleDisplayNames = [
                 <div class="stat-value"><?= $totalUsers ?></div>
                 <div class="stat-change">Người dùng trong hệ thống</div>
             </div>
-            <div class="stat-icon"><i class="fa-solid fa-users"></i></div>
+            <div class="stat-icon"><i class="fi fi-sr-users" style="font-size: 1.8rem;"></i></div>
         </div>
         
         <div class="stat-card" style="--accent: var(--blue); --icon-bg: rgba(59,130,246,0.12);">
@@ -405,7 +434,7 @@ $roleDisplayNames = [
                 <div class="stat-value"><?= $totalSeries ?></div>
                 <div class="stat-change">Được tạo bởi họa sĩ</div>
             </div>
-            <div class="stat-icon"><i class="fa-solid fa-book"></i></div>
+            <div class="stat-icon"><i class="fi fi-sr-book" style="font-size: 1.8rem;"></i></div>
         </div>
         
         <div class="stat-card" style="--accent: var(--green); --icon-bg: rgba(16,185,129,0.12);">
@@ -414,7 +443,7 @@ $roleDisplayNames = [
                 <div class="stat-value"><?= $totalChapters ?></div>
                 <div class="stat-change">Đang trong tiến trình</div>
             </div>
-            <div class="stat-icon"><i class="fa-solid fa-file-invoice"></i></div>
+            <div class="stat-icon"><i class="fi fi-sr-file-invoice" style="font-size: 1.8rem;"></i></div>
         </div>
         
         <div class="stat-card" style="--accent: var(--red); --icon-bg: rgba(230,57,70,0.12);">
@@ -423,7 +452,7 @@ $roleDisplayNames = [
                 <div class="stat-value"><?= $totalTasks ?></div>
                 <div class="stat-change">Đã giao cho trợ lý</div>
             </div>
-            <div class="stat-icon"><i class="fa-solid fa-tasks"></i></div>
+            <div class="stat-icon"><i class="fi fi-sr-list-check" style="font-size: 1.8rem;"></i></div>
         </div>
     </div>
 
@@ -432,23 +461,41 @@ $roleDisplayNames = [
         <div class="card">
             <div class="card-header">
                 <div>
-                    <h3 class="card-title">💰 Cài đặt đơn giá trợ lý</h3>
-                    <p class="card-subtitle">Đặt đơn giá thanh toán mặc định cho mỗi trang truyện trợ lý vẽ hoàn thành (VND/Trang).</p>
+                    <h3 class="card-title"><i class="fi fi-rr-usd-circle" style="margin-right:4px;"></i> Cài đặt đơn giá trợ lý</h3>
+                    <p class="card-subtitle">Đặt đơn giá gợi ý mặc định cho từng loại nhiệm vụ khi họa sĩ giao việc (VND).</p>
                 </div>
             </div>
             
             <form method="POST" action="">
                 <input type="hidden" name="action" value="save_assistant_rate">
-                <div class="form-group">
-                    <label class="form-label" for="default_assistant_rate">Đơn giá mặc định (VND / Trang)</label>
-                    <div style="display:flex; gap:10px;">
-                        <input type="number" id="default_assistant_rate" name="default_assistant_rate" class="form-control" value="<?= htmlspecialchars($defaultRate) ?>" required min="0" placeholder="250000" style="font-size:1.1rem; font-weight:700;">
-                        <span style="display:flex; align-items:center; color:var(--text-muted); font-size:0.9rem; font-weight:600; padding:0 5px;">VND</span>
-                    </div>
+                
+                <div class="form-group mb-12">
+                    <label class="form-label" for="default_rate_background">Tô nền (Background) - VND</label>
+                    <input type="number" id="default_rate_background" name="default_rate_background" class="form-control" value="<?= htmlspecialchars($rates['background']) ?>" required min="0" style="font-weight:700;">
                 </div>
                 
-                <button type="submit" class="btn btn-primary" style="width:100%;">
-                    💾 Lưu cấu hình
+                <div class="form-group mb-12">
+                    <label class="form-label" for="default_rate_shading">Tô bóng (Shading) - VND</label>
+                    <input type="number" id="default_rate_shading" name="default_rate_shading" class="form-control" value="<?= htmlspecialchars($rates['shading']) ?>" required min="0" style="font-weight:700;">
+                </div>
+                
+                <div class="form-group mb-12">
+                    <label class="form-label" for="default_rate_effects">Hiệu ứng (Effects) - VND</label>
+                    <input type="number" id="default_rate_effects" name="default_rate_effects" class="form-control" value="<?= htmlspecialchars($rates['effects']) ?>" required min="0" style="font-weight:700;">
+                </div>
+                
+                <div class="form-group mb-12">
+                    <label class="form-label" for="default_rate_lettering">Chữ/Thoại (Lettering) - VND</label>
+                    <input type="number" id="default_rate_lettering" name="default_rate_lettering" class="form-control" value="<?= htmlspecialchars($rates['lettering']) ?>" required min="0" style="font-weight:700;">
+                </div>
+                
+                <div class="form-group mb-16">
+                    <label class="form-label" for="default_rate_cleanup">Làm sạch (Cleanup) - VND</label>
+                    <input type="number" id="default_rate_cleanup" name="default_rate_cleanup" class="form-control" value="<?= htmlspecialchars($rates['cleanup']) ?>" required min="0" style="font-weight:700;">
+                </div>
+                
+                <button type="submit" class="btn btn-primary" style="width:100%; display:inline-flex; align-items:center; justify-content:center; gap:6px;">
+                    <i class="fi fi-rr-disk"></i> Lưu cấu hình
                 </button>
             </form>
         </div>
@@ -456,14 +503,14 @@ $roleDisplayNames = [
         <div class="card">
             <div class="card-header">
                 <div>
-                    <h3 class="card-title">💡 Thông tin vận hành</h3>
+                    <h3 class="card-title"><i class="fi fi-rr-info" style="margin-right:4px;"></i> Thông tin vận hành</h3>
                     <p class="card-subtitle">Lưu ý khi thay đổi các cài đặt hệ thống.</p>
                 </div>
             </div>
             <div style="font-size: 0.9rem; color: var(--text-muted); display:flex; flex-direction:column; gap:12px;">
-                <p>📌 <strong>Đơn giá trợ lý:</strong> Được dùng làm căn cứ tự động tính toán thu nhập hàng tháng của trợ lý (Manga Assistant) trong phần bảng lương, trừ khi họa sĩ ghi đè đơn giá cụ thể khi phê duyệt.</p>
-                <p>📌 <strong>Kiểm soát tài khoản:</strong> Khi tài khoản bị vô hiệu hóa (deactivated), người dùng đó sẽ bị ngắt kết nối session lập tức khi reload trang và không thể thực hiện đăng nhập lại.</p>
-                <p>📌 <strong>Bảo vệ an toàn:</strong> Hệ thống không cho phép Quản trị viên tự vô hiệu hóa tài khoản của chính mình để tránh sự cố mất quyền điều hành đột ngột.</p>
+                <p><i class="fi fi-rr-marker" style="margin-right:4px;"></i> <strong>Đơn giá trợ lý:</strong> Được dùng làm căn cứ tự động gợi ý giá tiền khi họa sĩ giao nhiệm vụ vẽ cho trợ lý. Họa sĩ có thể sửa lại giá tiền cho phù hợp với từng nhiệm vụ thực tế.</p>
+                <p><i class="fi fi-rr-marker" style="margin-right:4px;"></i> <strong>Kiểm soát tài khoản:</strong> Khi tài khoản bị vô hiệu hóa (deactivated), người dùng đó sẽ bị ngắt kết nối session lập tức khi reload trang và không thể thực hiện đăng nhập lại.</p>
+                <p><i class="fi fi-rr-marker" style="margin-right:4px;"></i> <strong>Bảo vệ an toàn:</strong> Hệ thống không cho phép Quản trị viên tự vô hiệu hóa tài khoản của chính mình để tránh sự cố mất quyền điều hành đột ngột.</p>
             </div>
         </div>
     </div>
@@ -516,8 +563,8 @@ $roleDisplayNames = [
                 <tbody>
                     <?php if (empty($usersList)): ?>
                         <tr>
-                            <td colspan="6" style="text-align:center; padding:40px; color:var(--text-muted);">
-                                🔍 Không tìm thấy thành viên nào.
+                            <td colspan="6" style="text-align:center; padding:40px; color:var(--text-muted); display:inline-flex; align-items:center; gap:6px; justify-content:center; width:100%;">
+                                <i class="fi fi-rr-search"></i> Không tìm thấy thành viên nào.
                             </td>
                         </tr>
                     <?php else: ?>
@@ -624,8 +671,8 @@ $roleDisplayNames = [
                 <tbody>
                     <?php if (empty($seriesList)): ?>
                         <tr>
-                            <td colspan="7" style="text-align:center; padding:40px; color:var(--text-muted);">
-                                🔍 Không tìm thấy bộ truyện nào.
+                            <td colspan="7" style="text-align:center; padding:40px; color:var(--text-muted); display:inline-flex; align-items:center; gap:6px; justify-content:center; width:100%;">
+                                <i class="fi fi-rr-search"></i> Không tìm thấy bộ truyện nào.
                             </td>
                         </tr>
                     <?php else: ?>

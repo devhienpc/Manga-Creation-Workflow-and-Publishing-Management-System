@@ -28,24 +28,24 @@ $stmt->execute([$uid]);
 $activeTasksCount = (int)$stmt->fetchColumn();
 
 /* ══════════════════════════════════════════════════
-   2. ĐẾM SỐ TRANG ĐÃ HOÀN THÀNH TRONG THÁNG NÀY
+   2. ĐẾM SỐ NHIỆM VỤ ĐÃ HOÀN THÀNH TRONG THÁNG NÀY
    ══════════════════════════════════════════════════ */
 $stmt = $db->prepare(
-    "SELECT COUNT(DISTINCT page_id) FROM tasks 
+    "SELECT COUNT(*) FROM tasks 
      WHERE assigned_to = ? 
        AND status = 'approved' 
-       AND MONTH(created_at) = ? 
-       AND YEAR(created_at) = ?"
+       AND MONTH(COALESCE(approved_at, created_at)) = ? 
+       AND YEAR(COALESCE(approved_at, created_at)) = ?"
 );
 $stmt->execute([$uid, $currentMonth, $currentYear]);
-$completedPagesMonth = (int)$stmt->fetchColumn();
+$completedTasksMonth = (int)$stmt->fetchColumn();
 
 /* ══════════════════════════════════════════════════
    3. TRUY VẤN THU NHẬP THÁNG HIỆN TẠI (PREVIEW)
    ══════════════════════════════════════════════════ */
 $stmt = $db->prepare(
-    "SELECT SUM(total) FROM earnings 
-     WHERE assistant_id = ? AND month = ? AND year = ?"
+    "SELECT SUM(gross_amount) FROM salary_records 
+     WHERE assistant_id = ? AND month = ? AND year = ? AND status = 'paid'"
 );
 $stmt->execute([$uid, $currentMonth, $currentYear]);
 $monthlyEarnings = $stmt->fetchColumn();
@@ -54,9 +54,16 @@ if ($monthlyEarnings !== false && $monthlyEarnings !== null) {
     $earningsPreview = (float)$monthlyEarnings;
     $isOfficialEarnings = true;
 } else {
-    // Tạm tính dựa trên số trang hoàn thành * 250,000đ
-    $fallbackRate = 250000;
-    $earningsPreview = $completedPagesMonth * $fallbackRate;
+    // Ước tính bằng tổng giá của các task đã được duyệt trong tháng này
+    $stmt = $db->prepare(
+        "SELECT SUM(price) FROM tasks 
+         WHERE assigned_to = ? 
+           AND status = 'approved' 
+           AND MONTH(COALESCE(approved_at, created_at)) = ? 
+           AND YEAR(COALESCE(approved_at, created_at)) = ?"
+    );
+    $stmt->execute([$uid, $currentMonth, $currentYear]);
+    $earningsPreview = (float)($stmt->fetchColumn() ?: 0);
     $isOfficialEarnings = false;
 }
 /* ══════════════════════════════════════════════════
@@ -130,38 +137,25 @@ $taskStatusLabels = [
 </div>
 
 <!-- 3 Statistics Cards -->
-<div class="stat-grid grid-3 mb-24">
+
+<div class="stat-grid grid-2 mb-24"> <!-- Đã đổi từ grid-3 thành grid-2 -->
     <!-- Active Tasks Count -->
     <div class="card stat-card" style="padding: 20px;">
         <div>
             <p class="text-xs text-muted font-bold" style="text-transform:uppercase; letter-spacing:0.5px;">Nhiệm vụ đang thực hiện</p>
             <div class="stat-number" style="font-size: 2.2rem; font-weight:800; margin-top:5px;"><?= $activeTasksCount ?></div>
         </div>
-        <div class="stat-icon" style="color:#60a5fa; font-size:1.8rem; opacity:0.8;">📋</div>
+        <div class="stat-icon" style="color:#60a5fa; font-size:1.8rem; opacity:0.8; display:flex; align-items:center; justify-content:center;"><i class="fi fi-sr-clipboard"></i></div>
     </div>
-    <!-- Completed Pages Count -->
+    <!-- Completed Tasks Count -->
     <div class="card stat-card" style="padding: 20px;">
         <div>
-            <p class="text-xs text-muted font-bold" style="text-transform:uppercase; letter-spacing:0.5px;">Trang hoàn thành (Tháng <?= $currentMonth ?>)</p>
-            <div class="stat-number" style="font-size: 2.2rem; font-weight:800; margin-top:5px; color:#34d399;"><?= $completedPagesMonth ?></div>
+            <p class="text-xs text-muted font-bold" style="text-transform:uppercase; letter-spacing:0.5px;">Nhiệm vụ hoàn thành (Tháng <?= $currentMonth ?>)</p>
+            <div class="stat-number" style="font-size: 2.2rem; font-weight:800; margin-top:5px; color:#34d399;"><?= $completedTasksMonth ?></div>
         </div>
-        <div class="stat-icon" style="color:#34d399; font-size:1.8rem; opacity:0.8;">🎨</div>
+        <div class="stat-icon" style="color:#34d399; font-size:1.8rem; opacity:0.8; display:flex; align-items:center; justify-content:center;"><i class="fi fi-sr-palette"></i></div>
     </div>
-    <!-- Monthly Earnings Preview -->
-    <div class="card stat-card" style="padding: 20px;">
-        <div>
-            <p class="text-xs text-muted font-bold" style="text-transform:uppercase; letter-spacing:0.5px;">
-                Thu nhập dự kiến (Tháng <?= $currentMonth ?>)
-            </p>
-            <div class="stat-number" style="font-size: 1.9rem; font-weight:800; margin-top:8px; color:#fbbf24;">
-                <?= number_format($earningsPreview) ?> đ
-            </div>
-            <p class="text-xs text-muted mt-8" style="font-style: italic;">
-                <?= $isOfficialEarnings ? '✓ Dữ liệu chính thức' : '* Ước tính (250Kđ/trang)' ?>
-            </p>
-        </div>
-        <div class="stat-icon" style="color:#fbbf24; font-size:1.8rem; opacity:0.8;">💰</div>
-    </div>
+
 </div>
 
 <div class="grid-2 gap-24" style="grid-template-columns: 1.2fr 1fr; align-items: start;">

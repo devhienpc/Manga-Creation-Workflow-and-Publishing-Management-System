@@ -255,6 +255,14 @@
 
         if (!bell || !dropdown) return;
 
+        // Inject custom styling for task notifications
+        const style = document.createElement('style');
+        style.textContent = `
+            .notif-revision-highlight { border-left: 3px solid #f39c12 !important; background: rgba(243, 156, 18, 0.06) !important; }
+            .notif-revision-highlight:hover { background: rgba(243, 156, 18, 0.1) !important; }
+        `;
+        document.head.appendChild(style);
+
         // Toggle dropdown
         bell.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -358,10 +366,26 @@
                     time = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
                 } catch(e) { time = n.created_at || ''; }
 
+                let typeIcon = '';
+                let extraClass = '';
+                if (n.type === 'task_submitted') {
+                    typeIcon = '📤';
+                } else if (n.type === 'task_approved') {
+                    typeIcon = '✅';
+                } else if (n.type === 'task_revision') {
+                    typeIcon = '🔄';
+                    extraClass = 'notif-revision-highlight';
+                } else if (n.type === 'page_completed') {
+                    typeIcon = '🎉';
+                } else if (n.type === 'task_overdue') {
+                    typeIcon = '❌';
+                }
+
                 html += `
-                    <div class="notif-item ${isUnread ? 'unread' : ''}" data-id="${n.id}" data-link="${esc(link)}">
+                    <div class="notif-item ${isUnread ? 'unread' : ''} ${extraClass}" data-id="${n.id}" data-link="${esc(link)}">
                         ${isUnread ? '<div class="notif-dot"></div>' : '<div style="width:8px;flex-shrink:0"></div>'}
-                        <div>
+                        ${typeIcon ? `<div class="notif-type-icon-wrapper" style="margin-right:8px; font-size:1.1rem; display:flex; align-items:center; justify-content:center;">${typeIcon}</div>` : ''}
+                        <div style="flex: 1;">
                             <div class="notif-text">${esc(n.message)}</div>
                             <div class="notif-time">${time}</div>
                         </div>
@@ -390,6 +414,8 @@
                     task_approved:        'success',
                     task_assigned:        'info',
                     task_submitted:       'info',
+                    task_overdue:         'error',
+                    page_completed:       'success',
                     manuscript_decision:  'success',
                     manuscript_review:    'warning',
                     submission_approved:  'success',

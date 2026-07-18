@@ -1,0 +1,41 @@
+# ============================================================
+#  .gitignore — Manga Creation Workflow System
+# ============================================================
+
+# ── Biến môi trường / Secrets ─────────────────────────────
+.env
+.env.local
+.env.production
+.env.staging
+
+# ── Database SQLite fallback ──────────────────────────────
+config/database.sqlite
+
+# ── Upload files (ảnh, PDF người dùng tải lên) ───────────
+# assets/uploads/pages/
+# assets/uploads/manuscripts/
+# assets/uploads/covers/
+# assets/uploads/tasks/
+# assets/uploads/avatars/
+# Uncomment dòng trên nếu không muốn commit file upload
+
+# ── OS / Editor junk ─────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+*~
+
+# ── IDE ───────────────────────────────────────────────────
+.idea/
+.vscode/
+*.code-workspace
+
+# ── PHP composer (nếu dùng sau này) ──────────────────────
+vendor/
+composer.lock
+
+# ── Logs ─────────────────────────────────────────────────
+*.log
+logs/

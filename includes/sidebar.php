@@ -38,9 +38,17 @@ $menus = [
             ]
         ],
         [
+            'label' => 'AI TOOLS',
+            'items' => [
+                ['page' => 'ai_colorize', 'label' => 'Tô màu tự động',  'href' => BASE_URL . 'ai/colorize.php', 'icon' => 'zap', 'ai' => true],
+                ['page' => 'ai_segment',  'label' => 'Phân đoạn trang', 'href' => BASE_URL . 'ai/segment.php',  'icon' => 'cpu', 'ai' => true],
+            ]
+        ],
+        [
             'label' => 'TÀI KHOẢN',
             'items' => [
-                ['page' => 'profile', 'label' => 'Hồ sơ của tôi', 'href' => BASE_URL . 'profile.php', 'icon' => 'user-circle'],
+                ['page' => 'wallet',  'label' => 'Ví điện tử',    'href' => BASE_URL . 'wallet/index.php', 'icon' => 'wallet'],
+                ['page' => 'profile', 'label' => 'Hồ sơ của tôi', 'href' => BASE_URL . 'profile.php',      'icon' => 'user-circle'],
             ]
         ],
     ],
@@ -54,31 +62,38 @@ $menus = [
             ]
         ],
         [
+            'label' => 'AI TOOLS',
+            'items' => [
+                ['page' => 'ai_colorize', 'label' => 'Tô màu tự động', 'href' => BASE_URL . 'ai/colorize.php', 'icon' => 'zap', 'ai' => true],
+            ]
+        ],
+        [
             'label' => 'TÀI KHOẢN',
             'items' => [
-                ['page' => 'profile', 'label' => 'Hồ sơ của tôi', 'href' => BASE_URL . 'profile.php', 'icon' => 'user-circle'],
+                ['page' => 'wallet',  'label' => 'Ví điện tử',    'href' => BASE_URL . 'wallet/index.php', 'icon' => 'wallet'],
+                ['page' => 'profile', 'label' => 'Hồ sơ của tôi', 'href' => BASE_URL . 'profile.php',      'icon' => 'user-circle'],
             ]
         ],
     ],
     'editor' => [
         [
-            'label' => '🌸 CHÍNH',
+            'label' => 'CHÍNH',
             'items' => [
-                ['page' => 'dashboard',    'label' => '✨ Dashboard',         'href' => BASE_URL . 'editor/dashboard.php',   'icon' => 'cute-home'],
-                ['page' => 'manuscripts',  'label' => '🎀 Bản thảo duyệt',    'href' => BASE_URL . 'editor/manuscripts.php', 'icon' => 'cute-file'],
+                ['page' => 'dashboard',    'label' => 'Dashboard',         'href' => BASE_URL . 'editor/dashboard.php',   'icon' => 'fi fi-sr-apps'],
+                ['page' => 'manuscripts',  'label' => 'Bản thảo duyệt',    'href' => BASE_URL . 'editor/manuscripts.php', 'icon' => 'fi fi-sr-document'],
             ]
         ],
         [
-            'label' => '💖 THEO DÕI',
+            'label' => 'THEO DÕI',
             'items' => [
-                ['page' => 'progress',  'label' => '🎨 Tiến độ Studio',    'href' => BASE_URL . 'editor/progress.php',   'icon' => 'cute-paint'],
-                ['page' => 'defense',   'label' => '🛡️ Bảo vệ tác phẩm',  'href' => BASE_URL . 'editor/defense.php',    'icon' => 'cute-shield'],
+                ['page' => 'progress',  'label' => 'Tiến độ Studio',    'href' => BASE_URL . 'editor/progress.php',   'icon' => 'fi fi-sr-palette'],
+                ['page' => 'defense',   'label' => 'Bảo vệ tác phẩm',  'href' => BASE_URL . 'editor/defense.php',    'icon' => 'fi fi-sr-shield-check'],
             ]
         ],
         [
-            'label' => '🐰 TÀI KHOẢN',
+            'label' => 'TÀI KHOẢN',
             'items' => [
-                ['page' => 'profile', 'label' => '🧸 Hồ sơ của tôi', 'href' => BASE_URL . 'profile.php', 'icon' => 'cute-user'],
+                ['page' => 'profile', 'label' => 'Hồ sơ của tôi', 'href' => BASE_URL . 'profile.php',      'icon' => 'fi fi-sr-user'],
             ]
         ],
     ],
@@ -93,9 +108,10 @@ $menus = [
         [
             'label' => 'QUẢN TRỊ',
             'items' => [
-                ['page' => 'ranking',   'label' => 'Xếp hạng tổng quát', 'href' => BASE_URL . 'board/ranking.php',   'icon' => 'award'],
-                ['page' => 'decisions', 'label' => 'Quyết định xuất bản', 'href' => BASE_URL . 'board/decisions.php', 'icon' => 'check-circle'],
-                ['page' => 'admin_dashboard', 'label' => 'Quản trị hệ thống', 'href' => BASE_URL . 'admin/index.php', 'icon' => 'grid'],
+                ['page' => 'ranking',      'label' => 'Xếp hạng tổng quát',  'href' => BASE_URL . 'board/ranking.php',      'icon' => 'award'],
+                ['page' => 'decisions',    'label' => 'Quyết định xuất bản',  'href' => BASE_URL . 'board/decisions.php',    'icon' => 'check-circle'],
+                ['page' => 'admin_dashboard', 'label' => 'Quản trị hệ thống', 'href' => BASE_URL . 'admin/index.php',        'icon' => 'grid'],
+                ['page' => 'withdrawals', 'label' => 'Quản lý rút tiền',     'href' => BASE_URL . 'admin/withdrawals.php', 'icon' => 'dollar-sign'],
             ]
         ],
         [
@@ -132,7 +148,12 @@ function navIcon(string $name): string {
         'award'        => '<circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/>',
         'check-circle' => '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>',
         'user-circle'  => '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+        'wallet'       => '<rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/>',
         
+        // AI Tools icons
+        'zap'          => '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+        'cpu'          => '<rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/>',
+
         // Cute Icons for Editor
         'cute-home'    => '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" fill="var(--red)" fill-opacity="0.2"/><polyline points="9 22 9 12 15 12 15 22"/>',
         'cute-file'    => '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" fill="#f472b6" fill-opacity="0.2"/><polyline points="14 2 14 8 20 8"/><path d="M16 13H8M16 17H8M10 9H8"/>',
@@ -140,6 +161,12 @@ function navIcon(string $name): string {
         'cute-shield'  => '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="#fbbf24" fill-opacity="0.2"/>',
         'cute-user'    => '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" fill="#38bdf8" fill-opacity="0.2"/><circle cx="12" cy="7" r="4" fill="#38bdf8" fill-opacity="0.2"/>',
     ];
+    
+    // Nếu tên icon bắt đầu bằng 'fi ' (Flaticon)
+    if (strpos($name, 'fi ') === 0) {
+        return '<i class="' . htmlspecialchars($name) . '" style="font-size: 1.15rem; margin-right: 4px;"></i>';
+    }
+
     $d = $icons[$name] ?? '<circle cx="12" cy="12" r="5"/>';
     return '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' . $d . '</svg>';
 }
@@ -206,8 +233,11 @@ $currentMenuGroups = $menus[$role] ?? [];
                         <?= navIcon($item['icon']) ?>
                         <span><?= htmlspecialchars($item['label']) ?></span>
                         <?php if (!empty($item['badge']) && ($unreadCount ?? 0) > 0): ?>
-    <span class="nav-badge"><?= $unreadCount ?? 0 ?></span>
-<?php endif; ?>
+                            <span class="nav-badge"><?= $unreadCount ?? 0 ?></span>
+                        <?php endif; ?>
+                        <?php if (!empty($item['ai'])): ?>
+                            <span style="font-size:.5rem;font-weight:800;letter-spacing:.5px;padding:1px 5px;border-radius:100px;background:linear-gradient(135deg,#7B2FBE,#a855f7);color:#fff;margin-left:auto;flex-shrink:0;">AI</span>
+                        <?php endif; ?>
                     </a>
                 </div>
             <?php endforeach; ?>
